@@ -1,0 +1,6 @@
+id	nom	prenom	telephone	email	adresse	ville	notes	defaultTarifId	statut	dateCreation
+LOPEZ_ALBAN	lopez	alban	0651818124	alban.lopez@gmail.com	1 rue jeliote	64290 Lasseube		TARIF_STANDARD	actif	2025-06-03T18:43:33.949Z
+LOPEZ_HINA	lopez	hina	0651818100	hina@gmail.com		64290 Lasseube		TARIF_LOWCOST	inactif	2025-06-03T18:44:28.968Z
+HEPAD_LSB	hepad	lsb	0651818102	hepad@gmail.com		64290 Lasseube		TARIF_ATELIER1H	inactif	2025-06-03T18:44:46.036Z
+LOPEZ_HUG	lopez	hug	0651818124	alban.lopez@gmail.com	2 rue	labenne		TARIF_STANDARD	actif	2025-06-03T22:04:06.760Z
+LOPEZ_ALBAN_1	lopez	alban	0651818124	alban.lopez@gmail.com	ngfdgkh	64290 Lasseube		TARIF_ATELIER1H	actif	2025-06-03T23:02:45.230Z

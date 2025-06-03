@@ -1,0 +1,2 @@
+id_seance	id_client	date_heure_seance	id_tarif	montant_facture	statut_seance	mode_paiement	date_paiement	invoice_number
+13877d6d-3ca9-4cdc-b30c-bd687c25c9fc	HEPAD_LSB	2025-06-03T18:44	TARIF_ATELIER1H	110.00	APAYER			FAC-2025-0002
