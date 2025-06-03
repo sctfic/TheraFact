@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facture Template</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.4;
+            position: relative; 
+        }
+        .header { display: flex; justify-content: space-between; margin-bottom: 2rem; align-items: flex-start; }
+        .manager-info { flex: 1; }
+        .invoice-info { text-align: right; flex: 1; }
+        .invoice-title { text-align: center; font-size: 1.8rem; color: #0056b3; margin: 2rem 0; font-weight: bold; }
+        .client-info { background-color: #f8f9fa; padding: 1rem; border-left: 4px solid #0056b3; margin: 1rem 0; }
+        table { width: 100%; border-collapse: collapse; margin: 2rem 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #0056b3; color: white; font-weight: bold; }
+        .total-row { background-color: #f8f9fa; font-weight: bold; }
+        .payment-total { text-align: right; font-size: 1.2rem; margin: 1rem 0; padding: 1rem; background-color: #e3f2fd; border-radius: 5px; }
+        .legal-mentions { margin-top: 3rem; padding-top: 2rem; border-top: 2px solid #ddd; font-size: 0.9rem; line-height: 1.6; }
+        .legal-mentions h4 { color: #0056b3; margin-bottom: 1rem; }
+        .legal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+        .legal-item { margin-bottom: 0.5rem; }
+        .legal-item strong { color: #333; }
+        @media print {
+            body { margin: 0; padding: 15px; }
+            .legal-mentions { page-break-inside: avoid; }
+            .watermark { display: block !important; } 
+        }
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-50deg); /* Angle ajusté */
+            font-size: 128px; /* Taille ajustée */
+            color: rgba(0, 86, 179, 0.2); /* Couleur plus subtile et en accord avec le thème */
+            text-transform: uppercase;
+            pointer-events: none;
+            z-index: 1; /* Derrière le contenu */
+            font-weight: bold;
+            display: none; /* Caché par défaut, affiché par JS si statut pertinent */
+            white-space: nowrap; /* pas de retour a la line */
+        }
+    </style>
+</head>
+<body>
+    <div class="watermark" id="watermark">Statut</div>
+    <div class="header">
+        <div class="manager-info">
+            <strong><span id="manager-name">Nom du Thérapeute</span></strong><br>
+            <span id="manager-address">Adresse</span><br><span id="manager-city">Ville</span><br>
+            Téléphone : <span id="manager-phone"></span><br>Email : <span id="manager-email"></span>
+        </div>
+        <div class="invoice-info">
+            <strong>Date d'émission :</strong> <span id="current-date"></span><br>
+            <strong>Date d'échéance :</strong> <span id="due-date"></span>
+        </div>
+    </div>
+    <div class="invoice-title">FACTURE</div>
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <strong>Facture N° : <span style="color: #0056b3;" id="invoice-number">FAC-YYYY-XXXX</span></strong>
+    </div>
+    <div class="client-info">
+        <strong>Facturé à :</strong><br>
+        <span id="client-name"></span><br><span id="client-address"></span><br><span id="client-city"></span>
+    </div>
+    <table>
+        <thead><tr><th>Date</th><th>Description</th><th>Qté</th><th>P.U. (€)</th><th>Total HT (€)</th></tr></thead>
+        <tbody id="invoice-items"></tbody>
+    </table>
+    <table> 
+        <tbody>
+            <tr class="total-row"><td colspan="4" style="text-align:right;"><strong>Total HT</strong></td><td style="text-align:right;"><strong><span id="total-ht">0,00</span> €</strong></td></tr>
+            <tr><td colspan="4" style="text-align:right;">TVA (<span id="tva-rate-info">0</span>%)</td><td style="text-align:right;"><span id="tva-amount">0,00</span> €</td></tr>
+            <tr class="total-row"><td colspan="4" style="text-align:right;"><strong>Total TTC</strong></td><td style="text-align:right;"><strong><span id="total-ttc">0,00</span> €</strong></td></tr>
+        </tbody>
+    </table>
+    <div class="payment-total"><strong>MONTANT À RÉGLER : <span id="amount-to-pay">0,00</span> €</strong></div>
+    <div class="legal-mentions">
+        <h4>Mentions Légales</h4>
+        <div class="legal-grid">
+            <div>
+                <div class="legal-item"><strong>SIRET :</strong> <span id="siret-number"></span></div>
+                <div class="legal-item"><strong>Code APE :</strong> <span id="ape-code"></span></div>
+                <div class="legal-item"><strong>N° ADELI :</strong> <span id="adeli-number"></span></div>
+            </div>
+            <div>
+                <div class="legal-item"><strong>IBAN :</strong> <span id="iban-number"></span></div>
+                <div class="legal-item"><strong>BIC :</strong> <span id="bic-code"></span></div>
+            </div>
+        </div>
+        <div class="legal-item"><strong>TVA :</strong> <span id="tva-mention"></span></div>
+        <div class="legal-item"><strong>Conditions de règlement :</strong> <span id="payment-terms"></span></div>
+        <div class="legal-item"><strong>Assurance RCP :</strong> <span id="insurance-info"></span></div>
+        <div class="legal-item" style="margin-top: 1rem; font-size: 0.8rem; color: #666;">
+            <em>Facture créée le <span id="creation-date"></span></em>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL_FOR_INVOICE_PAGE = 'http://fact.lpz.ovh:3000'; // Or your actual API base URL
+
+        function getUrlParameter(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = `position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #dc3545; color: white; padding: 15px 20px; border-radius: 5px; font-weight: bold; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2);`;
+            errorDiv.textContent = message;
+            document.body.appendChild(errorDiv);
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+        
+        function formatCurrency(value) {
+            return (typeof value === 'number' ? value : parseFloat(value || 0)).toFixed(2).replace('.', ',');
+        }
+
+        async function loadAndSetWatermark(invoiceNumberForStatus) {
+            const watermarkElement = document.getElementById('watermark');
+            if (!invoiceNumberForStatus || !watermarkElement) {
+                if(watermarkElement) watermarkElement.style.display = 'none';
+                return;
+            }
+            try {
+                // MODIFIED: Call new endpoint using invoiceNumber
+                const statusResponse = await fetch(`${API_BASE_URL_FOR_INVOICE_PAGE}/api/invoice/${invoiceNumberForStatus}/status`);
+                if (!statusResponse.ok) {
+                    console.warn(`Statut pour facture ${invoiceNumberForStatus} non trouvé ou erreur (${statusResponse.status})`);
+                    watermarkElement.style.display = 'none';
+                    return;
+                }
+                const statusData = await statusResponse.json();
+                const statutSeance = statusData.statut_seance;
+                console.log(`Statut pour facture ${invoiceNumberForStatus} chargé: ${statutSeance}`);
+
+                let watermarkText = '';
+                if (statutSeance === 'PAYEE') watermarkText = 'PAYÉE';
+                else if (statutSeance === 'APAYER') watermarkText = 'À PAYER';
+                else if (statutSeance === 'ANNULEE') watermarkText = 'ANNULÉE';
+                // Add other statuses if necessary
+
+                if (watermarkText) {
+                    watermarkElement.textContent = watermarkText;
+                    watermarkElement.style.display = 'block';
+                } else {
+                    watermarkElement.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Erreur chargement statut pour watermark:', error);
+                if(watermarkElement) watermarkElement.style.display = 'none';
+            }
+        }
+
+        function updateInvoiceData(data) {
+            let total_ht = 0;
+            if (data.manager) {
+                document.getElementById('manager-name').textContent = data.manager.name || 'N/A';
+                document.getElementById('manager-address').textContent = data.manager.address || 'N/A';
+                document.getElementById('manager-city').textContent = data.manager.city || 'N/A';
+                document.getElementById('manager-phone').textContent = data.manager.phone || 'N/A';
+                document.getElementById('manager-email').textContent = data.manager.email || 'N/A';
+            }
+            if (data.client) {
+                document.getElementById('client-name').textContent = data.client.name || 'N/A';
+                document.getElementById('client-address').textContent = data.client.address || 'N/A';
+                document.getElementById('client-city').textContent = data.client.city || 'N/A';
+            }
+            document.getElementById('invoice-number').textContent = data.invoiceNumber || 'FAC-YYYY-XXXX';
+            document.getElementById('current-date').textContent = data.invoiceDate || new Date().toLocaleDateString('fr-FR');
+            document.getElementById('due-date').textContent = data.dueDate || new Date(new Date().setDate(new Date().getDate() + 30)).toLocaleDateString('fr-FR');
+            document.getElementById('creation-date').textContent = data.invoiceDate ? `${data.invoiceDate} (générée)` : new Date().toLocaleDateString('fr-FR');
+            
+            const itemsContainer = document.getElementById('invoice-items');
+            itemsContainer.innerHTML = ''; 
+            if (data.service && Array.isArray(data.service)) {
+                data.service.forEach(item => {
+                    const row = itemsContainer.insertRow();
+                    const itemQuantity = parseFloat(item.quantity) || 1;
+                    const itemUnitPrice = parseFloat(item.unitPrice) || 0;
+                    const itemTotal = itemQuantity * itemUnitPrice;
+                    row.insertCell().textContent = item.Date || '-';
+                    row.insertCell().textContent = item.description || 'Service';
+                    row.insertCell().textContent = itemQuantity;
+                    row.insertCell().textContent = formatCurrency(itemUnitPrice) + ' €';
+                    row.insertCell().textContent = formatCurrency(itemTotal) + ' €';
+                    total_ht += itemTotal;
+                });
+            }
+            if (itemsContainer.rows.length === 0) { 
+                const emptyRow = itemsContainer.insertRow();
+                emptyRow.insertCell().colSpan = 5;
+                emptyRow.insertCell().textContent = "Aucun service détaillé.";
+                emptyRow.style.textAlign = "center";
+            }
+
+            const tvaRate = parseFloat(data.tva) || 0; 
+            const tvaPercentage = tvaRate > 1 ? tvaRate : tvaRate * 100; 
+            const tvaAsDecimal = tvaRate > 1 ? tvaRate / 100 : tvaRate;
+
+            document.getElementById('total-ht').textContent = formatCurrency(total_ht);
+            document.getElementById('tva-rate-info').textContent = formatCurrency(tvaPercentage); 
+            const tvaAmount = total_ht * tvaAsDecimal;
+            document.getElementById('tva-amount').textContent = formatCurrency(tvaAmount);
+            const total_ttc = total_ht + tvaAmount;
+            document.getElementById('total-ttc').textContent = formatCurrency(total_ttc);
+            document.getElementById('amount-to-pay').textContent = formatCurrency(total_ttc);
+
+            if (data.legal) {
+                document.getElementById('siret-number').textContent = data.legal.siret || 'N/A';
+                document.getElementById('ape-code').textContent = data.legal.ape || 'N/A';
+                document.getElementById('adeli-number').textContent = data.legal.adeli || 'N/A';
+                document.getElementById('iban-number').textContent = data.legal.iban || 'N/A';
+                document.getElementById('bic-code').textContent = data.legal.bic || 'N/A';
+                document.getElementById('tva-mention').textContent = data.legal.tvaMention || (tvaPercentage === 0 ? "TVA non applicable - Art. 293B du CGI" : `TVA au taux de ${formatCurrency(tvaPercentage)}%`);
+                document.getElementById('payment-terms').textContent = data.legal.paymentTerms || 'Paiement à réception.';
+                document.getElementById('insurance-info').textContent = data.legal.insurance || 'N/A';
+            }
+
+            // MODIFIED: Call loadAndSetWatermark with data.invoiceNumber
+            if (data.invoiceNumber && data.invoiceNumber !== 'FAC-MODELE') { // Avoid calling for template
+                loadAndSetWatermark(data.invoiceNumber);
+            } else {
+                const watermarkElement = document.getElementById('watermark');
+                if(watermarkElement) watermarkElement.style.display = 'none';
+            }
+        }
+
+        async function loadInvoiceFromJson(invoiceNumberToLoad) {
+            try {
+                // Assuming Facts directory is at the same level as invoice.html or accessible via relative path
+                // If invoice.html is in public/ and Facts is in public/Facts, this path is correct.
+                const jsonPath = `Facts/${invoiceNumberToLoad}.json`; 
+                console.log(`Chargement du JSON: ${jsonPath}`);
+                const response = await fetch(jsonPath); // Relative path to JSON
+                if (!response.ok) throw new Error(`Fichier ${invoiceNumberToLoad}.json non trouvé (${response.status})`);
+                const data = await response.json();
+                console.log('Données facture JSON chargées:', data);
+                updateInvoiceData(data); 
+            } catch (error) {
+                console.error('Erreur chargement facture JSON:', error);
+                showError(`Erreur: ${error.message}.`);
+                document.body.innerHTML = `<div style="text-align:center; padding: 50px;"><h1>Erreur</h1><p>Impossible de charger la facture : ${invoiceNumberToLoad}</p><p>${error.message}</p></div>`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const invoiceNumberFromUrl = getUrlParameter('invoiceNumber');
+            if (invoiceNumberFromUrl) {
+                console.log(`Numéro facture URL: ${invoiceNumberFromUrl}`);
+                loadInvoiceFromJson(invoiceNumberFromUrl);
+            } else {
+                console.log('Aucun numéro facture dans URL. Affichage du modèle.');
+                // showError('Paramètre "invoiceNumber" manquant dans l\'URL.'); // Optional: Show error or just template
+                // Display a template or default data if no invoiceNumber is provided
+                updateInvoiceData({ 
+                    manager: { name: "Votre Nom", title: "Votre Titre", address: "Votre Adresse", city: "Votre Ville", phone: "Votre Téléphone", email: "Votre Email" }, 
+                    client: { name: "Nom Client", address: "Adresse Client", city: "Ville Client" }, 
+                    service: [{description: "Exemple de Prestation", quantity:1, unitPrice: 100, Date: new Date().toLocaleDateString('fr-FR')}], 
+                    legal: { siret: "Votre SIRET", tvaMention: "TVA non applicable - Art. 293B du CGI", paymentTerms: "Paiement à réception." }, 
+                    invoiceNumber: 'FAC-MODELE', 
+                    invoiceDate: new Date().toLocaleDateString('fr-FR'), 
+                    dueDate: new Date(new Date().setDate(new Date().getDate() + 30)).toLocaleDateString('fr-FR'),
+                    tva: 0 
+                });
+                const watermarkElement = document.getElementById('watermark');
+                if(watermarkElement) watermarkElement.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
