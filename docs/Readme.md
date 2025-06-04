@@ -1,11 +1,11 @@
 Présentation du Projet : Application de Facturation pour Thérapeutes
-#1. Objectif Principal
+# 1. Objectif Principal
 L'objectif de ce projet est de fournir une application web simple et efficace pour les thérapeutes afin de gérer leurs clients, leurs tarifs, leurs séances, et de générer des devis et des factures de manière automatisée. L'application vise à simplifier les tâches administratives et à offrir une meilleure organisation du suivi des paiements.
 
-#2. Fonctionnalités Clés
+# 2. Fonctionnalités Clés
 L'application s'articule autour de plusieurs modules principaux :
 
-##2.1. Gestion des Clients
+## 2.1. Gestion des Clients
 Ajouter, modifier et supprimer des fiches clients.
 
 Enregistrer les informations client : nom, prénom, téléphone, email, adresse, ville, notes.
@@ -16,12 +16,12 @@ Gérer le statut du client (actif/inactif).
 
 Filtrer et rechercher des clients.
 
-##2.2. Gestion des Tarifs
+## 2.2. Gestion des Tarifs
 Ajouter, modifier et supprimer des types de tarifs (libellé et montant).
 
 Ces tarifs sont ensuite utilisés pour les séances et la facturation.
 
-##2.3. Gestion des Séances
+## 2.3. Gestion des Séances
 Planifier de nouvelles séances en associant un client, une date/heure, et un type de tarif.
 
 Le montant de la séance est automatiquement calculé à partir du tarif sélectionné.
@@ -36,7 +36,7 @@ Filtrer les séances par client, statut, et plage de dates.
 
 Modification rapide du statut et des informations de paiement directement depuis le tableau des séances (via double-clic).
 
-##2.4. Génération de Devis
+## 2.4. Génération de Devis
 Nouveau : Pour les séances planifiées dans le futur, possibilité de générer un devis.
 
 Un numéro de devis unique (ex: DEV-AAAA-XXXX) est attribué.
@@ -49,7 +49,7 @@ Possibilité d'envoyer le devis par email au client (avec le PDF en pièce joint
 
 Un devis est automatiquement annulé (son numéro est retiré de la séance) si une facture est générée pour la même séance.
 
-##2.5. Génération de Factures
+## 2.5. Génération de Factures
 Générer une facture pour une séance passée ou présente qui n'a pas encore été facturée.
 
 Un numéro de facture unique (ex: FAC-AAAA-XXXX) est attribué.
@@ -62,21 +62,21 @@ Possibilité d'envoyer la facture par email au client (avec le PDF en pièce joi
 
 Le statut de la séance est mis à jour (généralement "À Payer") lors de la génération de la facture.
 
-##2.6. Visualisation des Devis et Factures
+## 2.6. Visualisation des Devis et Factures
 Une page HTML unique (invoice.html) permet de visualiser les devis et les factures en fonction du numéro passé en paramètre d'URL.
 
 La page adapte son contenu (titres, libellés) pour afficher correctement un devis ou une facture.
 
 Un filigrane (ex: "DEVIS", "PAYÉE", "À PAYER") est affiché en fonction du type de document et du statut de la séance associée.
 
-##2.7. Tableau de Bord
+## 2.7. Tableau de Bord
 Affichage de chiffres clés : nombre total de clients, nombre total de séances, nombre de séances payées.
 
 Calcul et affichage du chiffre d'affaires pour le mois précédent, le mois en cours, l'année précédente et l'année en cours (basé sur les séances payées).
 
 Graphique d'évolution du nombre de séances (payées, à payer, annulées) et du montant payé, avec possibilité d'agréger par jour, semaine, mois, trimestre ou année.
 
-##2.8. Configuration de l'Application
+## 2.8. Configuration de l'Application
 Permet de configurer les informations du thérapeute/gestionnaire (nom, titre, adresse, contact, etc.).
 
 Définir le taux de TVA applicable (si nécessaire).
@@ -85,7 +85,7 @@ Renseigner les informations légales (SIRET, APE, ADELI, IBAN, BIC).
 
 Personnaliser les mentions légales apparaissant sur les factures (mention TVA, conditions de paiement, assurance RCP).
 
-#3. Technologies Utilisées
+# 3. Technologies Utilisées
 Frontend :
 
 HTML5
@@ -126,7 +126,7 @@ Puppeteer : Bibliothèque Node.js pour contrôler Chrome/Chromium en mode headle
 
 L'installation de Puppeteer est optionnelle ; si non détectée, la génération de PDF est désactivée.
 
-#4. Structure des Données (Simplifiée)
+# 4. Structure des Données (Simplifiée)
 clients.tsv: id, nom, prenom, telephone, email, adresse, ville, notes, defaultTarifId, statut, dateCreation
 
 tarifs.tsv: id, libelle, montant
@@ -137,7 +137,7 @@ settings.json: Structure JSON contenant les informations du manager, le taux de 
 
 Fichiers Devis/Facture JSON (ex: DEV-2024-0001.json, FAC-2024-0001.json): Contiennent toutes les données nécessaires pour afficher le document (informations du client, du manager, lignes de service, totaux, mentions légales, etc.).
 
-#5. Architecture Générale
+# 5. Architecture Générale
 Interface Utilisateur (Frontend) :
 
 index.html : Structure principale de l'application single-page.

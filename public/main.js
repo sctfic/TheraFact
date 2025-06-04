@@ -6,7 +6,7 @@ const INVOICE_PREVIEW_BASE_URL = 'http://fact.lpz.ovh';
 let clients = [];
 let tarifs = [];
 let seances = [];
-let appSettings = {};
+let appSettings = {}; // Sera chargé avec GMAIL_USER et GMAIL_APP_PASSWORD (ce dernier ne sera pas stocké côté client après test)
 let currentlyEditingRow = null;
 
 let editingClientId = null;
@@ -37,6 +37,8 @@ const tarifFormTitle = document.getElementById('tarifFormTitle');
 const tarifsTableBody = document.querySelector('#tarifsTable tbody');
 const btnAddTarif = document.getElementById('btnAddTarif');
 const cancelTarifFormBtn = document.getElementById('cancelTarifForm');
+const tarifDureeInput = document.getElementById('tarifDuree'); // Nouveau champ Durée
+
 // Séances
 const seanceFormContainer = document.getElementById('seanceFormContainer');
 const seanceForm = document.getElementById('seanceForm');
@@ -46,7 +48,7 @@ const btnAddSeance = document.getElementById('btnAddSeance');
 const cancelSeanceFormBtn = document.getElementById('cancelSeanceForm');
 const seanceClientNameInput = document.getElementById('seanceClientNameInput');
 if (seanceClientNameInput) {
-    seanceClientNameInput.setAttribute('autocomplete', 'off'); // Empêcher l'autocomplétion du navigateur
+    seanceClientNameInput.setAttribute('autocomplete', 'off');
 }
 const seanceClientIdInput = document.getElementById('seanceClientIdInput');
 const clientAutocompleteResults = document.getElementById('clientAutocompleteResults');
@@ -81,7 +83,9 @@ const configManagerDescription = document.getElementById('configManagerDescripti
 const configManagerAddress = document.getElementById('configManagerAddress');
 const configManagerCity = document.getElementById('configManagerCity');
 const configManagerPhone = document.getElementById('configManagerPhone');
-const configManagerEmail = document.getElementById('configManagerEmail');
+const configManagerEmail = document.getElementById('configManagerEmail'); // GMAIL_USER
+const configGmailAppPassword = document.getElementById('configGmailAppPassword'); // GMAIL_APP_PASSWORD
+const gmailTestResultDiv = document.getElementById('gmailTestResult');
 const configTva = document.getElementById('configTva');
 const configSiret = document.getElementById('configSiret');
 const configApe = document.getElementById('configApe');
@@ -101,9 +105,12 @@ function generateUUID() {
 }
 
 function showToast(message, type = 'info') {
-    if (message.toLowerCase().includes('succès') || message.toLowerCase().includes('succes') || message.toLowerCase().includes('envoyée')) type = 'success';
-    if (message.toLowerCase().includes('erreur')) type = 'error';
-
+    // Détermine le type basé sur le message si non explicitement 'success' ou 'error'
+    if (type !== 'success' && type !== 'error') {
+        if (message.toLowerCase().includes('succès') || message.toLowerCase().includes('succes') || message.toLowerCase().includes('envoyée') || message.toLowerCase().includes('réussie')) type = 'success';
+        else if (message.toLowerCase().includes('erreur') || message.toLowerCase().includes('échec')) type = 'error';
+    }
+    
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.textContent = message;
@@ -119,23 +126,33 @@ function showToast(message, type = 'info') {
     toast.style.fontWeight = 'bold';
     toast.style.fontSize = '1rem';
     toast.style.opacity = '0.97';
-    toast.style.transition = 'opacity 0.3s';
+    toast.style.transition = 'opacity 0.3s, transform 0.3s'; // Ajout transform pour animation
+    toast.style.transform = 'translateX(110%)'; // Position initiale hors écran
 
     if (type === 'success') {
         toast.style.background = '#28a745';
     } else if (type === 'error') {
         toast.style.background = '#dc3545';
-    } else { // info or warning
-        toast.style.background = '#007bff'; // Default to info blue
-        if (type === 'warning') toast.style.background = '#ffc107'; // Yellow for warning
+    } else { 
+        toast.style.background = '#007bff'; 
+        if (type === 'warning') toast.style.background = '#ffc107';
     }
 
     document.body.appendChild(toast);
+    
+    // Animation d'apparition
     setTimeout(() => {
+        toast.style.transform = 'translateX(0)';
+    }, 50);
+
+    // Animation de disparition
+    setTimeout(() => {
+        toast.style.transform = 'translateX(110%)'; // Sort de l'écran
         toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 400);
-    }, 3000);
+        setTimeout(() => toast.remove(), 400); // Supprime après la transition
+    }, 3500); // Durée d'affichage avant de commencer à disparaître
 }
+
 
 // --- Navigation ---
 function switchView(viewId) {
@@ -220,7 +237,7 @@ async function fetchClients() {
         if (!response.ok) throw new Error('Échec de la récupération des clients');
         clients = await response.json();
         renderClientsTable();
-        populateTarifDropdowns();
+        populateTarifDropdowns(); // Assurer que les tarifs sont dispo pour les listes déroulantes client
         updateDashboardStats();
     } catch (error) {
         showToast(`Erreur chargement clients: ${error.message}`, 'error');
@@ -235,7 +252,7 @@ async function fetchTarifs() {
         tarifs = await response.json();
         renderTarifsTable();
         populateTarifDropdowns();
-        if(clients.length > 0) renderClientsTable();
+        if(clients.length > 0) renderClientsTable(); // Mettre à jour la table client si elle dépend des tarifs
         updateDashboardStats();
     } catch (error) {
         showToast(`Erreur chargement tarifs: ${error.message}`, 'error');
@@ -248,10 +265,11 @@ async function fetchSeances() {
         const response = await fetch(`${API_BASE_URL}/seances`);
         if (!response.ok) throw new Error('Échec de la récupération des séances');
         seances = await response.json();
-        console.log("Séances récupérées (avec devis_number et après vérification intégrité):", seances);
+        console.log("Séances récupérées:", seances);
         renderSeancesTable();
         updateDashboardStats();
-    } catch (error) {
+    } catch (error)
+ {
         showToast(`Erreur chargement séances: ${error.message}`, 'error');
         console.error('Erreur de récupération des séances :', error);
     }
@@ -268,8 +286,8 @@ async function fetchSettings() {
     } catch (error) {
         showToast(`Erreur chargement paramètres: ${error.message}`, 'error');
         console.error('Erreur de récupération des paramètres :', error);
-        appSettings = {
-            manager: { name: "", title: "", description: "", address: "", city: "", phone: "", email: "" },
+        appSettings = { // Default structure if fetch fails
+            manager: { name: "", title: "", description: "", address: "", city: "", phone: "", email: "", gmailAppPasswordStatus: "" }, // Added gmailAppPasswordStatus
             tva: 0,
             legal: { siret: "", ape: "", adeli: "", iban: "", bic: "", tvaMention: "TVA non applicable - Art. 293B du CGI", paymentTerms: "Paiement à réception de facture", insurance: "" }
         };
@@ -282,7 +300,11 @@ async function fetchSettings() {
 
 // --- Gestion des Clients ---
 function populateTarifDropdowns() {
-    const tarifOptions = tarifs.map(t => `<option value="${t.id}">${t.libelle} (${parseFloat(t.montant).toFixed(2)}€)</option>`).join('');
+    const tarifOptions = tarifs.map(t => {
+        // Ajout de la durée dans le libellé du dropdown si elle existe
+        const dureeText = t.duree ? ` (${t.duree} min)` : '';
+        return `<option value="${t.id}">${t.libelle}${dureeText} - ${parseFloat(t.montant).toFixed(2)}€</option>`;
+    }).join('');
     if (clientDefaultTarifSelect) clientDefaultTarifSelect.innerHTML = '<option value="">Aucun</option>' + tarifOptions;
     if (seanceTarifSelect) seanceTarifSelect.innerHTML = '<option value="">Sélectionner un tarif</option>' + tarifOptions;
 }
@@ -353,7 +375,7 @@ async function toggleClientStatus(clientId) {
             renderClientsTable();
             showToast('Statut client mis à jour.');
         } catch (error) {
-            client.statut = client.statut === 'actif' ? 'inactif' : 'actif';
+            client.statut = client.statut === 'actif' ? 'inactif' : 'actif'; // Revert on error
             showToast(`Erreur mise à jour statut client: ${error.message}`, 'error');
             console.error('Erreur de bascule de statut :', error);
         }
@@ -395,7 +417,12 @@ function renderClientsTable() {
         statusCell.appendChild(statusCheckbox);
 
         const defaultTarif = tarifs.find(t => t.id === client.defaultTarifId);
-        row.insertCell().textContent = defaultTarif ? `${defaultTarif.libelle} (${parseFloat(defaultTarif.montant).toFixed(2)}€)` : '-';
+        let tarifDisplayText = '-';
+        if (defaultTarif) {
+            const dureeText = defaultTarif.duree ? ` (${defaultTarif.duree} min)` : '';
+            tarifDisplayText = `${defaultTarif.libelle}${dureeText} - ${parseFloat(defaultTarif.montant).toFixed(2)}€`;
+        }
+        row.insertCell().textContent = tarifDisplayText;
         row.insertCell().textContent = client.dateCreation ? new Date(client.dateCreation).toLocaleDateString('fr-FR') : '-';
 
         const actionsCell = row.insertCell();
@@ -439,6 +466,7 @@ if (btnAddTarif) btnAddTarif.addEventListener('click', () => {
     tarifFormTitle.textContent = 'Ajouter un nouveau tarif';
     tarifForm.reset();
     document.getElementById('tarifId').value = '';
+    if (tarifDureeInput) tarifDureeInput.value = ''; // Reset durée
     tarifFormContainer.classList.remove('hidden');
 });
 if (cancelTarifFormBtn) cancelTarifFormBtn.addEventListener('click', () => {
@@ -450,7 +478,8 @@ if (tarifForm) tarifForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const tarifData = {
         libelle: document.getElementById('tarifLibelle').value,
-        montant: parseFloat(document.getElementById('tarifMontant').value)
+        montant: parseFloat(document.getElementById('tarifMontant').value),
+        duree: tarifDureeInput.value ? parseInt(tarifDureeInput.value) : null // Ajout de la durée
     };
 
     if (editingTarifId) {
@@ -461,6 +490,11 @@ if (tarifForm) tarifForm.addEventListener('submit', async (event) => {
         showToast("Le montant du tarif est invalide.", "error");
         return;
     }
+    if (tarifData.duree !== null && (isNaN(tarifData.duree) || tarifData.duree < 0)) {
+        showToast("La durée du tarif est invalide.", "error");
+        return;
+    }
+
 
     try {
         const response = await fetch(`${API_BASE_URL}/tarifs`, {
@@ -469,7 +503,7 @@ if (tarifForm) tarifForm.addEventListener('submit', async (event) => {
             body: JSON.stringify(tarifData)
         });
         if (!response.ok) throw new Error('Échec de la sauvegarde du tarif');
-        await fetchTarifs();
+        await fetchTarifs(); // Recharge et re-render les tarifs
         tarifFormContainer.classList.add('hidden');
         tarifForm.reset();
         editingTarifId = null;
@@ -484,12 +518,13 @@ function renderTarifsTable() {
     if (!tarifsTableBody) return;
     tarifsTableBody.innerHTML = '';
     if (tarifs.length === 0) {
-        tarifsTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Aucun tarif défini.</td></tr>';
+        tarifsTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Aucun tarif défini.</td></tr>'; // Colspan à 4
         return;
     }
     tarifs.forEach(tarif => {
         const row = tarifsTableBody.insertRow();
         row.insertCell().textContent = tarif.libelle;
+        row.insertCell().textContent = tarif.duree ? `${tarif.duree} min` : '-'; // Affichage de la durée
         row.insertCell().textContent = parseFloat(tarif.montant).toFixed(2) + ' €';
         const actionsCell = row.insertCell();
         actionsCell.classList.add('actions-cell');
@@ -510,6 +545,7 @@ function loadTarifForEdit(tarifId) {
         document.getElementById('tarifId').value = tarif.id;
         document.getElementById('tarifLibelle').value = tarif.libelle;
         document.getElementById('tarifMontant').value = parseFloat(tarif.montant).toFixed(2);
+        if (tarifDureeInput) tarifDureeInput.value = tarif.duree || ''; // Chargement de la durée
         tarifFormTitle.textContent = 'Modifier le tarif';
         tarifFormContainer.classList.remove('hidden');
     }
@@ -527,8 +563,9 @@ if (btnAddSeance) btnAddSeance.addEventListener('click', () => {
     populateTarifDropdowns();
     if (seanceTarifSelect) seanceTarifSelect.value = '';
     if (seanceMontantInput) seanceMontantInput.value = '';
-    document.getElementById('seanceDate').value = new Date().toISOString().slice(0, 16);
-    toggleSeancePaymentFields('APAYER');
+    document.getElementById('seanceDate').value = new Date().toISOString().slice(0, 16); // Date actuelle par défaut
+    if(seanceStatutSelect) seanceStatutSelect.value = 'PLANIFIEE'; // Statut par défaut
+    toggleSeancePaymentFields('PLANIFIEE');
     seanceFormContainer.classList.remove('hidden');
 });
 if (cancelSeanceFormBtn) cancelSeanceFormBtn.addEventListener('click', () => {
@@ -565,7 +602,7 @@ if (seanceClientNameInput) {
             clientAutocompleteResults.classList.add('hidden');
         }
     });
-    seanceClientNameInput.addEventListener('change', () => {
+    seanceClientNameInput.addEventListener('change', () => { // Auto-select if exact match on blur
         if (seanceClientNameInput.value && !seanceClientIdInput.value) {
             const clientNameFromInput = seanceClientNameInput.value.trim();
             const foundClient = clients.find(c =>
@@ -592,11 +629,12 @@ function selectClientForSeance(client) {
     seanceClientIdInput.value = client.id;
     clientAutocompleteResults.innerHTML = '';
     clientAutocompleteResults.classList.add('hidden');
+    // Pré-remplir le tarif par défaut du client
     if (client.defaultTarifId && tarifs.find(t => t.id === client.defaultTarifId)) {
         seanceTarifSelect.value = client.defaultTarifId;
         updateSeanceMontant();
     } else {
-        seanceTarifSelect.value = '';
+        seanceTarifSelect.value = ''; // Ou un autre tarif par défaut si configuré
         seanceMontantInput.value = '';
     }
 }
@@ -620,7 +658,7 @@ function toggleSeancePaymentFields(statut) {
     if (statut === 'PAYEE') {
         seanceModePaiementGroup.classList.remove('hidden');
         seanceDatePaiementGroup.classList.remove('hidden');
-        if (!document.getElementById('seanceDatePaiement').value) {
+        if (!document.getElementById('seanceDatePaiement').value) { // Set current date if empty
              document.getElementById('seanceDatePaiement').valueAsDate = new Date();
         }
     } else {
@@ -636,14 +674,15 @@ if (seanceForm) seanceForm.addEventListener('submit', async (event) => {
     let idClient = seanceClientIdInput.value;
     const clientNameFromInput = seanceClientNameInput.value.trim();
 
-    if (!idClient && clientNameFromInput) {
+    // Vérification client
+    if (!idClient && clientNameFromInput) { // Essayer de trouver le client si non sélectionné via autocomplete mais tapé
         const foundClient = clients.find(c =>
             `${c.prenom} ${c.nom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase() ||
             `${c.nom} ${c.prenom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase()
         );
         if (foundClient) {
             idClient = foundClient.id;
-            seanceClientIdInput.value = idClient;
+            seanceClientIdInput.value = idClient; // Mettre à jour l'ID caché
         }
     }
 
@@ -671,21 +710,24 @@ if (seanceForm) seanceForm.addEventListener('submit', async (event) => {
         mode_paiement: seanceStatutSelect.value === 'PAYEE' ? (seanceModePaiementSelect.value || null) : null,
         date_paiement: seanceStatutSelect.value === 'PAYEE' && document.getElementById('seanceDatePaiement').value ? document.getElementById('seanceDatePaiement').value : null,
         invoice_number: editingSeanceId ? (seances.find(s => s.id_seance === editingSeanceId)?.invoice_number || null) : null,
-        devis_number: editingSeanceId ? (seances.find(s => s.id_seance === editingSeanceId)?.devis_number || null) : null
+        devis_number: editingSeanceId ? (seances.find(s => s.id_seance === editingSeanceId)?.devis_number || null) : null,
+        // googleCalendarEventId sera géré côté serveur
     };
 
     try {
         const response = await fetch(`${API_BASE_URL}/seances`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(seanceData)
+            body: JSON.stringify(seanceData) // Envoi de la nouvelle séance ou de la séance modifiée
         });
-        if (!response.ok) throw new Error('Échec de la sauvegarde de la séance');
-        await fetchSeances();
+        const result = await response.json(); // Récupérer la réponse du serveur
+        if (!response.ok) throw new Error(result.message || 'Échec de la sauvegarde de la séance');
+        
+        await fetchSeances(); // Recharger toutes les séances
         seanceFormContainer.classList.add('hidden');
         seanceForm.reset();
         editingSeanceId = null;
-        showToast('Séance enregistrée avec succès.');
+        showToast(result.message || 'Séance enregistrée avec succès.'); // Afficher le message du serveur
     } catch (error) {
         showToast(`Erreur sauvegarde séance: ${error.message}`, 'error');
         console.error('Erreur de sauvegarde de la séance :', error);
@@ -713,11 +755,11 @@ function renderSeancesTable() {
             const seanceDateOnly = seance.date_heure_seance.split('T')[0];
             if (dateStartFilter && seanceDateOnly < dateStartFilter) matchesDate = false;
             if (dateEndFilter && seanceDateOnly > dateEndFilter) matchesDate = false;
-        } else {
-            if(dateStartFilter || dateEndFilter) matchesDate = false;
+        } else { // Si pas de date de séance, ne pas filtrer par date
+            if(dateStartFilter || dateEndFilter) matchesDate = false; // ou true, selon la logique souhaitée
         }
         return matchesClient && matchesStatut && matchesDate;
-    }).sort((a, b) => new Date(b.date_heure_seance) - new Date(a.date_heure_seance));
+    }).sort((a, b) => new Date(b.date_heure_seance) - new Date(a.date_heure_seance)); // Trier par date décroissante
 
 
     if (filteredSeances.length === 0) {
@@ -726,7 +768,7 @@ function renderSeancesTable() {
     }
 
     const today = new Date();
-    today.setHours(0,0,0,0); // For date-only comparison
+    today.setHours(0,0,0,0); 
 
     filteredSeances.forEach(seance => {
         const row = seancesTableBody.insertRow();
@@ -745,6 +787,7 @@ function renderSeancesTable() {
         if(seance.statut_seance === 'APAYER') statutText = 'À Payer';
         else if(seance.statut_seance === 'PAYEE') statutText = 'Payée';
         else if(seance.statut_seance === 'ANNULEE') statutText = 'Annulée';
+        else if(seance.statut_seance === 'PLANIFIEE') statutText = 'Planifiée';
         statutCell.textContent = statutText;
 
         const modePaiementCell = row.insertCell();
@@ -757,10 +800,9 @@ function renderSeancesTable() {
 
         const invoiceCell = row.insertCell();
         invoiceCell.classList.add('invoice-cell');
-        invoiceCell.innerHTML = ''; // Clear previous content
+        invoiceCell.innerHTML = ''; 
 
         const seanceDate = new Date(seance.date_heure_seance);
-        // Ne pas appeler setHours sur seanceDate ici pour garder l'heure pour la comparaison exacte
         const isFutureSeance = new Date(seance.date_heure_seance) > new Date();
 
 
@@ -783,7 +825,7 @@ function renderSeancesTable() {
                     sendDevisByEmail(seance.id_seance, seance.devis_number, client ? client.email : null);
                 };
                 invoiceCell.appendChild(emailDevisBtn);
-            } else if (!seance.invoice_number) { // Can only generate devis if not already invoiced
+            } else if (!seance.invoice_number) { 
                 const btnGenererDevis = document.createElement('button');
                 btnGenererDevis.textContent = 'Devis';
                 btnGenererDevis.classList.add('btn', 'btn-primary', 'btn-sm');
@@ -792,16 +834,15 @@ function renderSeancesTable() {
                     generateDevisForSeance(seance.id_seance);
                 };
                 invoiceCell.appendChild(btnGenererDevis);
-            } else { // Future seance but already invoiced
+            } else { 
                  const invoiceLink = document.createElement('a');
                  invoiceLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
                  invoiceLink.textContent = seance.invoice_number;
                  invoiceLink.target = '_blank';
                  invoiceLink.style.marginRight = '5px';
                  invoiceCell.appendChild(invoiceLink);
-                 // Optionnel: bouton email pour facture future
             }
-        } else { // Past or Today Seance
+        } else { 
             if (seance.invoice_number) {
                 const invoiceLink = document.createElement('a');
                 invoiceLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
@@ -820,7 +861,7 @@ function renderSeancesTable() {
                     sendInvoiceByEmail(seance.id_seance, seance.invoice_number, client ? client.email : null);
                 };
                 invoiceCell.appendChild(emailBtn);
-            } else { // Not invoiced yet
+            } else { 
                 if (seance.devis_number) {
                     const devisInfo = document.createElement('span');
                     devisInfo.textContent = `(Devis: ${seance.devis_number}) `;
@@ -841,7 +882,7 @@ function renderSeancesTable() {
 
         const actionsCell = row.insertCell();
         actionsCell.classList.add('actions-cell');
-        if (!seance.invoice_number) {
+        if (!seance.invoice_number) { // On ne peut modifier/supprimer que si non facturé
             const editBtn = document.createElement('button');
             editBtn.textContent = 'Modifier';
             editBtn.classList.add('btn', 'btn-warning', 'btn-sm');
@@ -861,7 +902,7 @@ function renderSeancesTable() {
             };
             actionsCell.appendChild(deleteBtn);
         } else {
-            actionsCell.textContent = '-';
+            actionsCell.textContent = '-'; // Pas d'actions si facturé
         }
 
         row.addEventListener('dblclick', handleSeanceRowDblClick);
@@ -888,12 +929,12 @@ async function generateInvoiceForSeance(seanceId) {
         const seanceIndex = seances.findIndex(s => s.id_seance === seanceId);
         if (seanceIndex > -1) {
             seances[seanceIndex].invoice_number = result.invoiceNumber;
-            seances[seanceIndex].devis_number = null; // Annuler le devis si facturé
+            seances[seanceIndex].devis_number = null; 
             if (result.newSeanceStatus) {
                 seances[seanceIndex].statut_seance = result.newSeanceStatus;
             }
         }
-        renderSeancesTable();
+        renderSeancesTable(); // Re-render pour afficher le numéro de facture et màj actions
     } catch (error) {
         showToast(`Erreur: ${error.message}`, 'error');
         console.error('Erreur génération facture:', error);
@@ -903,7 +944,7 @@ async function generateInvoiceForSeance(seanceId) {
 async function generateDevisForSeance(seanceId) {
     if (currentlyEditingRow && currentlyEditingRow.dataset.seanceId === seanceId) {
         const seance = seances.find(s => s.id_seance === seanceId);
-        if (seance) await saveRowChanges(currentlyEditingRow, seance);
+       if (seance) await saveRowChanges(currentlyEditingRow, seance);
     }
     showToast('Génération du devis en cours...', 'info');
     try {
@@ -921,7 +962,7 @@ async function generateDevisForSeance(seanceId) {
         if (seanceIndex > -1) {
             seances[seanceIndex].devis_number = result.devisNumber;
         }
-        renderSeancesTable();
+        renderSeancesTable(); // Re-render pour afficher le numéro de devis
     } catch (error) {
         showToast(`Erreur génération devis: ${error.message}`, 'error');
         console.error('Erreur génération devis:', error);
@@ -938,6 +979,7 @@ async function sendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
         showToast("L'email du manager n'est pas configuré dans les paramètres.", "error");
         return;
     }
+    // La vérification GMAIL_APP_PASSWORD se fait côté serveur maintenant
 
     if (!clientEmail) {
         const clientForSeance = clients.find(c => c.id === seances.find(s => s.id_seance === seanceId)?.id_client);
@@ -954,7 +996,7 @@ async function sendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ clientEmail: clientEmail })
+            body: JSON.stringify({ clientEmail: clientEmail }) // Le serveur utilisera GMAIL_USER/PASS des settings
         });
 
         const result = await response.json();
@@ -1023,6 +1065,15 @@ async function handleSeanceRowDblClick(event) {
 
     if (!seanceId) return;
 
+    const seance = seances.find(s => s.id_seance === seanceId);
+    if (!seance || seance.invoice_number) { // Ne pas permettre l'édition en ligne si facturé
+        if (seance && seance.invoice_number) {
+            showToast("Modification en ligne impossible pour une séance facturée.", "warning");
+        }
+        return;
+    }
+
+
     if (currentlyEditingRow && currentlyEditingRow !== row) {
         const oldSeanceId = currentlyEditingRow.dataset.seanceId;
         const oldSeance = seances.find(s => s.id_seance === oldSeanceId);
@@ -1033,15 +1084,10 @@ async function handleSeanceRowDblClick(event) {
         }
     }
 
-    if (currentlyEditingRow === row) return;
+    if (currentlyEditingRow === row) return; // Déjà en mode édition
 
     currentlyEditingRow = row;
-    const seance = seances.find(s => s.id_seance === seanceId);
-    if (!seance) {
-        currentlyEditingRow = null;
-        return;
-    }
-
+    
     const statusCell = row.querySelector('td[data-column="statut_seance"]');
     if (statusCell) {
         makeCellEditable(statusCell, seance, 'statut_seance');
@@ -1054,18 +1100,18 @@ async function handleSeanceRowDblClick(event) {
 
 function makeCellEditable(cell, seance, columnName) {
     if (!cell || (cell.querySelector('input') || cell.querySelector('select'))) {
-        return;
+        return; // Déjà éditable ou pas de cellule
     }
 
     const originalValue = seance[columnName];
-    cell.innerHTML = '';
+    cell.innerHTML = ''; // Vider la cellule
 
     let inputElement;
 
     if (columnName === 'statut_seance') {
         inputElement = document.createElement('select');
         inputElement.classList.add('form-input-sm');
-        const statuses = { "APAYER": "À Payer", "PAYEE": "Payée", "ANNULEE": "Annulée" };
+        const statuses = { "PLANIFIEE": "Planifiée", "APAYER": "À Payer", "PAYEE": "Payée", "ANNULEE": "Annulée" };
         for (const key in statuses) {
             const option = document.createElement('option');
             option.value = key;
@@ -1094,7 +1140,7 @@ function makeCellEditable(cell, seance, columnName) {
         inputElement.classList.add('form-input-sm');
         inputElement.value = originalValue ? (originalValue.includes('T') ? originalValue.split('T')[0] : originalValue) : '';
     } else {
-        return;
+        return; // Type de colonne non géré pour l'édition en ligne
     }
 
     if (inputElement) {
@@ -1103,11 +1149,12 @@ function makeCellEditable(cell, seance, columnName) {
         inputElement.focus();
 
         inputElement.addEventListener('blur', async (e) => {
+            // Permettre le focus sur un autre input/select de la même ligne sans sauvegarder immédiatement
             const relatedTarget = e.relatedTarget;
             const currentRow = cell.closest('tr');
             if (relatedTarget && currentRow && currentRow.contains(relatedTarget) &&
                 (relatedTarget.tagName === 'INPUT' || relatedTarget.tagName === 'SELECT')) {
-                return;
+                return; 
             }
             await saveRowChanges(cell.parentElement, seance);
         });
@@ -1130,38 +1177,40 @@ function togglePaymentFieldsInRow(row, seance, currentStatut) {
     if (!modePaiementCell || !datePaiementCell) return;
 
     if (currentStatut === 'PAYEE') {
-        if (!modePaiementCell.querySelector('select')) {
+        if (!modePaiementCell.querySelector('select')) { // Si pas déjà un select
             makeCellEditable(modePaiementCell, seance, 'mode_paiement');
         }
-        if (!datePaiementCell.querySelector('input[type="date"]')) {
-            let seanceForDateEdit = {...seance};
-            if (!seanceForDateEdit.date_paiement) {
+        if (!datePaiementCell.querySelector('input[type="date"]')) { // Si pas déjà un input date
+            let seanceForDateEdit = {...seance}; // Copie pour ne pas altérer l'original avant sauvegarde
+            if (!seanceForDateEdit.date_paiement) { // Mettre date du jour si vide
                 seanceForDateEdit.date_paiement = new Date().toISOString().split('T')[0];
             }
             makeCellEditable(datePaiementCell, seanceForDateEdit, 'date_paiement');
         }
-    } else {
+    } else { // Pour les autres statuts, remettre en mode affichage si c'était des inputs
         if (modePaiementCell.querySelector('select')) modePaiementCell.innerHTML = seance.mode_paiement || '-';
         if (datePaiementCell.querySelector('input[type="date"]')) datePaiementCell.innerHTML = seance.date_paiement ? new Date(seance.date_paiement).toLocaleDateString('fr-FR') : '-';
     }
 }
 
-async function saveRowChanges(row, seanceRef) {
+async function saveRowChanges(row, seanceRef) { // seanceRef est la séance avant modif
     if (!row || !row.dataset || !row.dataset.seanceId || !seanceRef) {
-        if (row) revertRowToDisplayMode(row, seanceRef);
+        if (row) revertRowToDisplayMode(row, seanceRef); // Tenter de restaurer avec la réf si possible
         currentlyEditingRow = null;
         return;
     }
 
     const seanceId = row.dataset.seanceId;
-    let seanceToUpdate = { ...seances.find(s => s.id_seance === seanceId) };
+    let seanceToUpdate = { ...seances.find(s => s.id_seance === seanceId) }; // Copie de la séance actuelle dans l'état global
 
     if (!seanceToUpdate) {
         showToast("Erreur: Séance non trouvée pour la mise à jour.", "error");
-        revertRowToDisplayMode(row, null);
+        revertRowToDisplayMode(row, null); // Restaurer avec null car la séance est introuvable
         currentlyEditingRow = null;
         return;
     }
+    
+    const oldStatus = seanceRef.statut_seance; // Statut avant modification
 
     let hasChanges = false;
     const statutSelectElement = row.querySelector('td[data-column="statut_seance"] select');
@@ -1181,13 +1230,14 @@ async function saveRowChanges(row, seanceRef) {
         }
 
         const newDatePaiement = datePaiementInputElement ? (datePaiementInputElement.value || null) : seanceToUpdate.date_paiement;
+        // Normaliser l'ancienne date pour comparaison (si elle vient du TSV, elle peut être YYYY-MM-DD)
         const oldDatePaiementNormalized = seanceToUpdate.date_paiement ? (seanceToUpdate.date_paiement.includes('T') ? seanceToUpdate.date_paiement.split('T')[0] : seanceToUpdate.date_paiement) : null;
 
         if (oldDatePaiementNormalized !== newDatePaiement) {
             seanceToUpdate.date_paiement = newDatePaiement;
             hasChanges = true;
         }
-    } else {
+    } else { // Si le statut n'est pas PAYEE, s'assurer que les champs de paiement sont null
         if (seanceToUpdate.mode_paiement !== null) {
             seanceToUpdate.mode_paiement = null; hasChanges = true;
         }
@@ -1197,10 +1247,12 @@ async function saveRowChanges(row, seanceRef) {
     }
 
     if (!hasChanges) {
-        revertRowToDisplayMode(row, seanceToUpdate);
+        revertRowToDisplayMode(row, seanceToUpdate); // Restaurer avec la version potentiellement modifiée (si un champ a été touché puis remis à l'identique)
         currentlyEditingRow = null;
         return;
     }
+    
+    seanceToUpdate.previous_statut_seance = oldStatus; // Ajout pour le serveur
 
     try {
         const response = await fetch(`${API_BASE_URL}/seances`, {
@@ -1208,21 +1260,24 @@ async function saveRowChanges(row, seanceRef) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(seanceToUpdate)
         });
+        const result = await response.json(); // Toujours attendre la réponse JSON
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Échec de la mise à jour de la séance');
+            throw new Error(result.message || 'Échec de la mise à jour de la séance');
         }
-        showToast('Séance mise à jour avec succès.');
+        showToast(result.message || 'Séance mise à jour avec succès.');
+        
+        // Mettre à jour l'état local avec la version du serveur (qui peut inclure googleCalendarEventId etc.)
+        const updatedSeanceFromServer = result.updatedSeance || seanceToUpdate; // Utiliser la séance retournée par le serveur si disponible
         const index = seances.findIndex(s => s.id_seance === seanceId);
         if (index > -1) {
-            seances[index] = seanceToUpdate;
+            seances[index] = { ...seances[index], ...updatedSeanceFromServer }; // Fusionner avec les données du serveur
         }
-        revertRowToDisplayMode(row, seanceToUpdate);
+        revertRowToDisplayMode(row, seances[index]); // Re-render la ligne avec les données à jour
     } catch (error) {
         showToast(`Erreur MAJ séance: ${error.message}`, 'error');
         console.error('Erreur de mise à jour de la séance :', error);
-        const originalSeance = seances.find(s => s.id_seance === seanceId);
-        revertRowToDisplayMode(row, originalSeance || seanceRef);
+        // En cas d'erreur, restaurer avec la version avant modif (seanceRef)
+        revertRowToDisplayMode(row, seanceRef); 
     } finally {
         currentlyEditingRow = null;
     }
@@ -1232,49 +1287,56 @@ function revertRowToDisplayMode(row, seance) {
     if (!row) return;
     const seanceId = row.dataset.seanceId;
 
+    // Si seance n'est pas fourni, essayer de le retrouver dans l'état global
     if (!seance && seanceId) {
         seance = seances.find(s => s.id_seance === seanceId);
     }
+    // Si toujours pas de seance (ex: suppression en cours ou erreur), mettre des tirets
     if (!seance) {
          row.querySelectorAll('td[data-column]').forEach(cell => {
             if (cell.firstChild && (cell.firstChild.tagName === 'INPUT' || cell.firstChild.tagName === 'SELECT')) {
-                cell.innerHTML = '-';
+                cell.innerHTML = '-'; // Mettre un tiret si la cellule était en édition
             }
          });
         return;
     }
 
+    // Restaurer la cellule de statut
     const statutCell = row.querySelector('td[data-column="statut_seance"]');
     if (statutCell) {
         let statutText = seance.statut_seance;
         if(seance.statut_seance === 'APAYER') statutText = 'À Payer';
         else if(seance.statut_seance === 'PAYEE') statutText = 'Payée';
         else if(seance.statut_seance === 'ANNULEE') statutText = 'Annulée';
+        else if(seance.statut_seance === 'PLANIFIEE') statutText = 'Planifiée';
         statutCell.innerHTML = statutText;
     }
 
+    // Restaurer la cellule de mode de paiement
     const modePaiementCell = row.querySelector('td[data-column="mode_paiement"]');
     if (modePaiementCell) {
         modePaiementCell.innerHTML = seance.mode_paiement || '-';
     }
 
+    // Restaurer la cellule de date de paiement
     const datePaiementCell = row.querySelector('td[data-column="date_paiement"]');
     if (datePaiementCell) {
         datePaiementCell.innerHTML = seance.date_paiement ? new Date(seance.date_paiement).toLocaleDateString('fr-FR') : '-';
     }
 
-    // Re-render invoice/devis cell specifically
+    // Re-render invoice/devis cell et actions cell car elles peuvent changer avec le statut
     const invoiceCell = row.querySelector('.invoice-cell');
     const actionsCell = row.querySelector('.actions-cell');
-    if (invoiceCell && seance) {
+    if (invoiceCell && seance) { // S'assurer que seance est défini
         invoiceCell.innerHTML = ''; // Clear current content
         if (actionsCell) actionsCell.innerHTML = ''; // Clear current actions
 
         const today = new Date(); today.setHours(0,0,0,0);
         const seanceDate = new Date(seance.date_heure_seance);
-        const isFutureSeance = new Date(seance.date_heure_seance) > new Date(); // Compare with full datetime
+        const isFutureSeance = new Date(seance.date_heure_seance) > new Date();
         const client = clients.find(c => c.id === seance.id_client);
 
+        // Logique d'affichage facture/devis (identique à renderSeancesTable)
         if (isFutureSeance) {
             if (seance.devis_number) {
                 const devisLink = document.createElement('a');
@@ -1297,7 +1359,7 @@ function revertRowToDisplayMode(row, seance) {
                 btnGenererDevis.classList.add('btn', 'btn-primary', 'btn-sm');
                 btnGenererDevis.onclick = (e) => { e.stopPropagation(); generateDevisForSeance(seance.id_seance); };
                 invoiceCell.appendChild(btnGenererDevis);
-            } else { // Future but already invoiced
+            } else { 
                  const invoiceLink = document.createElement('a');
                  invoiceLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
                  invoiceLink.textContent = seance.invoice_number;
@@ -1305,7 +1367,7 @@ function revertRowToDisplayMode(row, seance) {
                  invoiceLink.style.marginRight = '5px';
                  invoiceCell.appendChild(invoiceLink);
             }
-        } else { // Past or Today
+        } else { 
             if (seance.invoice_number) {
                 const invoiceLink = document.createElement('a');
                 invoiceLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
@@ -1353,7 +1415,7 @@ function revertRowToDisplayMode(row, seance) {
                 actionsCell.textContent = '-';
             }
         }
-    } else if (invoiceCell) {
+    } else if (invoiceCell) { // Si seance non défini mais invoiceCell existe
         invoiceCell.innerHTML = '-';
         if (actionsCell) actionsCell.innerHTML = '-';
     }
@@ -1363,7 +1425,9 @@ function revertRowToDisplayMode(row, seance) {
 document.addEventListener('click', async (event) => {
     if (currentlyEditingRow && !currentlyEditingRow.contains(event.target)) {
         let targetIsActionButtonInSameRow = false;
-        if (event.target.closest('tr') === currentlyEditingRow && event.target.tagName === 'BUTTON') {
+        // Vérifier si la cible est un bouton d'action (facturer, devis, email) DANS la même ligne
+        if (event.target.closest('tr') === currentlyEditingRow && 
+            (event.target.tagName === 'BUTTON' || (event.target.tagName === 'IMG' && event.target.closest('button')))) {
             targetIsActionButtonInSameRow = true;
         }
 
@@ -1371,9 +1435,9 @@ document.addEventListener('click', async (event) => {
             const seanceId = currentlyEditingRow.dataset.seanceId;
             const seance = seances.find(s => s.id_seance === seanceId);
             if (seance) {
-                await saveRowChanges(currentlyEditingRow, seance);
+                await saveRowChanges(currentlyEditingRow, seance); // Sauvegarder les changements
             } else {
-                revertRowToDisplayMode(currentlyEditingRow, null);
+                revertRowToDisplayMode(currentlyEditingRow, null); // Restaurer si la séance n'est pas trouvée
                 currentlyEditingRow = null;
             }
         }
@@ -1389,11 +1453,12 @@ function loadSeanceForEdit(seanceId) {
         return;
     }
 
+    // Si une autre ligne est en cours d'édition, la sauvegarder d'abord
     if (currentlyEditingRow) {
         const currentSeanceId = currentlyEditingRow.dataset.seanceId;
-        if (currentSeanceId !== seanceId) {
+        if (currentSeanceId !== seanceId) { // S'assurer que ce n'est pas la même ligne
             const currentSeance = seances.find(s => s.id_seance === currentSeanceId);
-            if (currentSeance) saveRowChanges(currentlyEditingRow, currentSeance);
+            if (currentSeance) saveRowChanges(currentlyEditingRow, currentSeance); // Sauvegarder l'ancienne ligne
         }
     }
 
@@ -1404,7 +1469,7 @@ function loadSeanceForEdit(seanceId) {
     seanceClientNameInput.value = client ? `${client.prenom} ${client.nom}` : '';
     seanceClientIdInput.value = seance.id_client;
 
-    document.getElementById('seanceDate').value = seance.date_heure_seance;
+    document.getElementById('seanceDate').value = seance.date_heure_seance; // Format YYYY-MM-DDTHH:mm
     populateTarifDropdowns();
     seanceTarifSelect.value = seance.id_tarif;
     seanceMontantInput.value = parseFloat(seance.montant_facture).toFixed(2);
@@ -1423,7 +1488,6 @@ function loadSeanceForEdit(seanceId) {
 
 // --- Statistiques du Tableau de Bord ---
 function updateDashboardStats() {
-    console.log("Mise à jour des statistiques du tableau de bord...");
     if(document.getElementById('statClientsCount')) document.getElementById('statClientsCount').textContent = clients.length;
     if(document.getElementById('statSeancesCount')) document.getElementById('statSeancesCount').textContent = seances.length;
 
@@ -1443,7 +1507,7 @@ function updateDashboardStats() {
         const date = new Date(seance.date_paiement);
         const mois = date.getMonth();
         const annee = date.getFullYear();
-        const montant = typeof seance.montant_facture === 'string' ? parseFloat(seance.montant_facture) : parseFloat(seance.montant_facture);
+        const montant = typeof seance.montant_facture === 'string' ? parseFloat(seance.montant_facture) : parseFloat(seance.montant_facture || 0);
         if (isNaN(montant)) return;
 
         if (annee === anneeActuelle) {
@@ -1456,7 +1520,10 @@ function updateDashboardStats() {
             caAnneePrecedente += montant;
         }
 
-        if (annee === (moisActuel === 0 ? anneeActuelle - 1 : anneeActuelle) && mois === (moisActuel === 0 ? 11 : moisActuel - 1)) {
+        // Calcul du mois précédent
+        let prevMonthDate = new Date(now);
+        prevMonthDate.setMonth(now.getMonth() - 1);
+        if (annee === prevMonthDate.getFullYear() && mois === prevMonthDate.getMonth()) {
             caMoisPrecedent += montant;
         }
     });
@@ -1477,13 +1544,13 @@ function getPeriodStartDate(dateStr, periodType) {
     if (!dateStr) return null;
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return null;
-    d.setHours(0, 0, 0, 0);
+    d.setHours(0, 0, 0, 0); // Normaliser à minuit
 
     if (periodType === 'day') {
         return d;
     } else if (periodType === 'week') {
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        const day = d.getDay(); // 0 (Dimanche) - 6 (Samedi)
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Ajuster pour Lundi
         return new Date(d.setDate(diff));
     } else if (periodType === 'month') {
         return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -1493,17 +1560,17 @@ function getPeriodStartDate(dateStr, periodType) {
     } else if (periodType === 'year') {
         return new Date(d.getFullYear(), 0, 1);
     }
-    return d;
+    return d; // Par défaut, retourne la date normalisée
 }
 
 function formatPeriodForDisplay(date, periodType) {
     const d = new Date(date);
     if (periodType === 'day') return d3.timeFormat("%d/%m/%y")(d);
-    if (periodType === 'week') return `S${d3.timeFormat("%W-%y")(d)}`;
-    if (periodType === 'month') return d3.timeFormat("%b %Y")(d);
+    if (periodType === 'week') return `S${d3.timeFormat("%W-%y")(d)}`; // Semaine de l'année
+    if (periodType === 'month') return d3.timeFormat("%b %Y")(d); // ex: Jan 2023
     if (periodType === 'quarter') return `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
     if (periodType === 'year') return d3.timeFormat("%Y")(d);
-    return d.toLocaleDateString();
+    return d.toLocaleDateString(); // Fallback
 }
 
 function prepareChartData(allSeances, periodType) {
@@ -1513,35 +1580,38 @@ function prepareChartData(allSeances, periodType) {
     const aggregatedData = {};
     allSeances.forEach(seance => {
         const montantFacture = parseFloat(seance.montant_facture || 0);
+        // Agréger par date de séance pour les statuts
         if (seance.date_heure_seance) {
             const sessionDate = new Date(seance.date_heure_seance);
             if (!isNaN(sessionDate.getTime())) {
                 const sessionPeriodStart = getPeriodStartDate(sessionDate, periodType);
                 if (sessionPeriodStart) {
-                    const sessionPeriodKey = sessionPeriodStart.toISOString().slice(0, 10);
+                    const sessionPeriodKey = sessionPeriodStart.toISOString().slice(0, 10); // Clé unique pour la période
                     if (!aggregatedData[sessionPeriodKey]) {
                         aggregatedData[sessionPeriodKey] = {
                             periodDate: sessionPeriodStart,
                             periodLabel: formatPeriodForDisplay(sessionPeriodStart, periodType),
-                            cancelledSessions: 0, paidSessions: 0, toPaySessions: 0, paidAmount: 0
+                            cancelledSessions: 0, paidSessions: 0, toPaySessions: 0, plannedSessions: 0, paidAmount: 0
                         };
                     }
                     if (seance.statut_seance === 'ANNULEE') aggregatedData[sessionPeriodKey].cancelledSessions += 1;
                     else if (seance.statut_seance === 'PAYEE') aggregatedData[sessionPeriodKey].paidSessions += 1;
                     else if (seance.statut_seance === 'APAYER') aggregatedData[sessionPeriodKey].toPaySessions += 1;
+                    else if (seance.statut_seance === 'PLANIFIEE') aggregatedData[sessionPeriodKey].plannedSessions += 1;
                 }
             }
         }
+        // Agréger par date de paiement pour le montant payé
         if (seance.statut_seance === 'PAYEE' && seance.date_paiement) {
             const paymentDate = new Date(seance.date_paiement);
              if (!isNaN(paymentDate.getTime())) {
                 const paymentPeriodStart = getPeriodStartDate(paymentDate, periodType);
                 if (paymentPeriodStart) {
                     const paymentPeriodKey = paymentPeriodStart.toISOString().slice(0, 10);
-                    if (!aggregatedData[paymentPeriodKey]) {
+                    if (!aggregatedData[paymentPeriodKey]) { // S'assurer que la période existe
                         aggregatedData[paymentPeriodKey] = {
                             periodDate: paymentPeriodStart, periodLabel: formatPeriodForDisplay(paymentPeriodStart, periodType),
-                            cancelledSessions: 0, paidSessions: 0, toPaySessions: 0, paidAmount: 0
+                            cancelledSessions: 0, paidSessions: 0, toPaySessions: 0, plannedSessions: 0, paidAmount: 0
                         };
                     }
                     if (!isNaN(montantFacture)) aggregatedData[paymentPeriodKey].paidAmount += montantFacture;
@@ -1555,19 +1625,19 @@ function prepareChartData(allSeances, periodType) {
 
 function renderSessionsTrendChart(chartData) {
     if(!sessionsTrendChartContainer) return;
-    sessionsTrendChartContainer.innerHTML = '';
+    sessionsTrendChartContainer.innerHTML = ''; // Vider le conteneur
     if (!chartData || chartData.length === 0) {
         sessionsTrendChartContainer.innerHTML = "<p style='text-align:center; padding-top: 20px; color:#666;'>Pas de données suffisantes pour afficher le graphique.</p>";
         return;
     }
     const containerWidth = sessionsTrendChartContainer.clientWidth;
-     if (containerWidth === 0) {
-        setTimeout(() => renderSessionsTrendChart(chartData), 100);
+     if (containerWidth === 0) { // Si le conteneur n'est pas encore visible/dimensionné
+        setTimeout(() => renderSessionsTrendChart(chartData), 100); // Réessayer un peu plus tard
         return;
     }
-    const margin = {top: 30, right: 70, bottom: 110, left: 60},
+    const margin = {top: 30, right: 70, bottom: 110, left: 60}, // Augmenter bottom pour les labels x rotatés
           width = Math.max(0, containerWidth - margin.left - margin.right),
-          height = Math.max(0, 400 - margin.top - margin.bottom);
+          height = Math.max(0, 400 - margin.top - margin.bottom); // Hauteur fixe pour le graphique
     if (width <= 0 || height <= 0) {
         sessionsTrendChartContainer.innerHTML = "<p style='text-align:center; padding-top: 20px; color:#666;'>Espace insuffisant pour afficher le graphique.</p>";
         return;
@@ -1577,51 +1647,65 @@ function renderSessionsTrendChart(chartData) {
       .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
     const periods = chartData.map(d => d.periodLabel);
     const x = d3.scaleBand().domain(periods).range([0, width]).padding(0.2);
-    const yCountsMax = d3.max(chartData, d => d.cancelledSessions + d.paidSessions + d.toPaySessions) || 1;
+    // Calculer le max pour l'axe Y des comptes (barres empilées)
+    const yCountsMax = d3.max(chartData, d => d.cancelledSessions + d.paidSessions + d.toPaySessions + d.plannedSessions) || 1;
     const yCounts = d3.scaleLinear().domain([0, yCountsMax]).nice().range([height, 0]);
-    const yAmountsMax = d3.max(chartData, d => d.paidAmount) || 1;
+    // Calculer le max pour l'axe Y des montants (ligne)
+    const yAmountsMax = d3.max(chartData, d => d.paidAmount) || 1; // Assurer au moins 1 pour éviter domaine [0,0]
     const yAmounts = d3.scaleLinear().domain([0, yAmountsMax]).nice().range([height, 0]);
+    // Axe X
     const xAxis = d3.axisBottom(x);
     svg.append("g").attr("class", "axis axis--x").attr("transform", `translate(0,${height})`).call(xAxis)
         .selectAll("text").style("text-anchor", "end").attr("dx", "-.8em").attr("dy", ".15em").attr("transform", "rotate(-45)");
+    // Axe Y gauche (Comptes)
     svg.append("g").attr("class", "axis axis--y-counts").call(d3.axisLeft(yCounts))
       .append("text").attr("fill", "#000").attr("transform", "rotate(-90)").attr("y", -margin.left + 15)
         .attr("x", -height/2).attr("dy", "0.71em").attr("text-anchor", "middle").text("Nombre de Séances");
+    // Axe Y droit (Montants)
     svg.append("g").attr("class", "axis axis--y-amounts").attr("transform", `translate(${width},0)`).call(d3.axisRight(yAmounts))
-      .append("text").attr("fill", "#000").attr("transform", "rotate(-90)").attr("y", margin.right - 25)
+      .append("text").attr("fill", "#000").attr("transform", "rotate(-90)").attr("y", margin.right - 25) // Ajuster position label
         .attr("x", -height/2).attr("dy", "-0.71em").attr("text-anchor", "middle").text("Montant Payé (€)");
-    const stackKeys = ['cancelledSessions', 'paidSessions', 'toPaySessions'];
+    // Barres empilées pour les statuts de séances
+    const stackKeys = ['plannedSessions', 'toPaySessions', 'paidSessions', 'cancelledSessions']; // Ordre d'empilement
     const stack = d3.stack().keys(stackKeys);
     const stackedData = stack(chartData);
-    const colorScale = d3.scaleOrdinal().domain(stackKeys).range(['#dc3545', '#28a745', '#ffc107']);
+    const colorScale = d3.scaleOrdinal().domain(stackKeys).range(['#17a2b8', '#ffc107', '#28a745', '#dc3545']); // Couleurs pour Planifiée, À Payer, Payée, Annulée
+    // Tooltip
     const tooltip = d3.select("body").append("div").attr("class", "chart-tooltip")
         .style("opacity", 0).style("position", "absolute").style("pointer-events", "none");
+    // Groupes de barres
     const barGroups = svg.append("g").selectAll("g").data(stackedData).enter().append("g")
           .attr("fill", d => colorScale(d.key)).attr("class", d => `bar-stack-${d.key}`);
     barGroups.selectAll("rect").data(d => d).enter().append("rect")
           .attr("x", d => x(d.data.periodLabel)).attr("y", d => yCounts(d[1]))
           .attr("height", d => Math.max(0, yCounts(d[0]) - yCounts(d[1]))).attr("width", x.bandwidth())
           .on("mouseover", function(event, d) {
-              const key = d3.select(this.parentNode).datum().key;
+              const key = d3.select(this.parentNode).datum().key; // Récupérer la clé de la série (ex: 'paidSessions')
               let count; let label;
               if (key === 'cancelledSessions') { count = d.data.cancelledSessions; label = 'Annulées';}
               else if (key === 'paidSessions') { count = d.data.paidSessions; label = 'Payées';}
               else if (key === 'toPaySessions') { count = d.data.toPaySessions; label = 'À Payer';}
+              else if (key === 'plannedSessions') { count = d.data.plannedSessions; label = 'Planifiées';}
               tooltip.transition().duration(200).style("opacity", .9);
               tooltip.html(`<strong>${d.data.periodLabel}</strong><br/>Séances ${label}: ${count}`)
                   .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 28) + "px");
-              svg.selectAll(".bar-stack-cancelledSessions rect, .bar-stack-paidSessions rect, .bar-stack-toPaySessions rect").style("opacity", 0.3);
+              // Estomper les autres barres
+              svg.selectAll(".bar-stack-plannedSessions rect, .bar-stack-cancelledSessions rect, .bar-stack-paidSessions rect, .bar-stack-toPaySessions rect").style("opacity", 0.3);
+              // Mettre en évidence la barre survolée
               svg.selectAll(`.bar-stack-${key} rect`).filter(barData => barData.data.periodLabel === d.data.periodLabel).style("opacity", 1);
           }).on("mouseout", function() {
               tooltip.transition().duration(500).style("opacity", 0);
-              svg.selectAll(".bar-stack-cancelledSessions rect, .bar-stack-paidSessions rect, .bar-stack-toPaySessions rect").style("opacity", 1);
+              // Rétablir l'opacité de toutes les barres
+              svg.selectAll(".bar-stack-plannedSessions rect, .bar-stack-cancelledSessions rect, .bar-stack-paidSessions rect, .bar-stack-toPaySessions rect").style("opacity", 1);
           });
+    // Ligne pour le montant payé
     const linePaidAmount = d3.line().x(d => x(d.periodLabel) + x.bandwidth() / 2).y(d => yAmounts(d.paidAmount))
-        .defined(d => d.paidAmount !== undefined && d.paidAmount !== null);
-    svg.append("path").datum(chartData.map(d => ({...d, paidAmount: d.paidAmount || 0})))
-        .attr("class", "line paid-amount-line").attr("fill", "none").attr("stroke", "#007bff")
+        .defined(d => d.paidAmount !== undefined && d.paidAmount !== null); // Ne pas tracer si undefined/null
+    svg.append("path").datum(chartData.map(d => ({...d, paidAmount: d.paidAmount || 0}))) // Assurer que paidAmount est un nombre pour la ligne
+        .attr("class", "line paid-amount-line").attr("fill", "none").attr("stroke", "#007bff") // Bleu pour la ligne
         .attr("stroke-width", 2.5).attr("d", linePaidAmount);
-    svg.selectAll(".dot-paid-amount").data(chartData.filter(d => d.paidAmount !== undefined && d.paidAmount !== null && d.paidAmount > 0))
+    // Points sur la ligne
+    svg.selectAll(".dot-paid-amount").data(chartData.filter(d => d.paidAmount !== undefined && d.paidAmount !== null && d.paidAmount > 0)) // Points seulement si > 0
         .enter().append("circle").attr("class", "dot dot-paid-amount")
         .attr("cx", d => x(d.periodLabel) + x.bandwidth() / 2).attr("cy", d => yAmounts(d.paidAmount))
         .attr("r", 5).attr("fill", "#007bff").attr("stroke", "white").attr("stroke-width", 1.5)
@@ -1630,13 +1714,16 @@ function renderSessionsTrendChart(chartData) {
             tooltip.html(`<strong>${d.periodLabel}</strong><br/>Montant Payé: ${d.paidAmount.toFixed(2)}€`)
                 .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 28) + "px");
         }).on("mouseout", () => { tooltip.transition().duration(500).style("opacity", 0); });
+    // Légende
     const legendData = [
-        { color: '#ffc107', text: "Séances à Payer" }, { color: '#28a745', text: "Séances Payées" },
-        { color: '#dc3545', text: "Séances Annulées" }, { color: "#007bff", text: "Montant Payé (€) (Ligne)" }
+        { color: '#17a2b8', text: "Planifiées" }, { color: '#ffc107', text: "À Payer" },
+        { color: '#28a745', text: "Payées" }, { color: '#dc3545', text: "Annulées" },
+        { color: "#007bff", text: "Montant Payé (€) (Ligne)" }
     ];
-    const legendContainer = svg.append("g").attr("class", "legend-container").attr("transform", `translate(0, ${height + margin.bottom - 45})`);
+    const legendContainer = svg.append("g").attr("class", "legend-container")
+        .attr("transform", `translate(0, ${height + margin.bottom - 45})`); // Ajuster position Y
     const legend = legendContainer.selectAll(".legend-item").data(legendData).enter().append("g")
-        .attr("class", "legend-item").attr("transform", (d, i) => `translate(${i * 140}, 0)`);
+        .attr("class", "legend-item").attr("transform", (d, i) => `translate(${i * 130}, 0)`); // Espacement
     legend.append("rect").attr("x", 0).attr("y", 0).attr("width", 18).attr("height", 18).style("fill", d => d.color);
     legend.append("text").attr("x", 24).attr("y", 9).attr("dy", ".35em")
         .style("text-anchor", "start").style("font-size", "10px").text(d => d.text);
@@ -1650,7 +1737,7 @@ function displaySessionsTrendChart() {
     }
     const viewDashboard = document.getElementById('viewDashboard');
     if (!viewDashboard || !viewDashboard.classList.contains('active')) {
-        return;
+        return; // Ne pas rendre si l'onglet n'est pas actif
     }
     const periodType = chartPeriodSelector ? chartPeriodSelector.value : 'month';
     const chartData = prepareChartData(seances, periodType);
@@ -1671,7 +1758,13 @@ function populateConfigForm() {
         if(configManagerAddress) configManagerAddress.value = appSettings.manager.address || '';
         if(configManagerCity) configManagerCity.value = appSettings.manager.city || '';
         if(configManagerPhone) configManagerPhone.value = appSettings.manager.phone || '';
-        if(configManagerEmail) configManagerEmail.value = appSettings.manager.email || '';
+        if(configManagerEmail) configManagerEmail.value = appSettings.manager.email || ''; // GMAIL_USER
+        // Ne pas pré-remplir le mot de passe d'application pour des raisons de sécurité
+        if(configGmailAppPassword) configGmailAppPassword.value = ''; 
+        if(gmailTestResultDiv) {
+            gmailTestResultDiv.textContent = appSettings.manager.gmailAppPasswordStatus === 'success' ? 'Connexion Gmail précédemment réussie.' : '';
+            gmailTestResultDiv.style.color = appSettings.manager.gmailAppPasswordStatus === 'success' ? 'green' : 'red';
+        }
     }
     if(configTva) configTva.value = appSettings.tva !== undefined ? appSettings.tva : '';
     if (appSettings.legal) {
@@ -1689,11 +1782,54 @@ function populateConfigForm() {
 if (configForm) {
     configForm.addEventListener('submit', async (event) => {
         event.preventDefault();
+        const managerEmail = configManagerEmail.value;
+        const gmailPassword = configGmailAppPassword.value; // Récupérer le mot de passe entré
+
+        let gmailTestPassed = appSettings.manager && appSettings.manager.gmailAppPasswordStatus === 'success'; // Par défaut, si déjà OK et pas de nouveau mdp
+
+        if (managerEmail && gmailPassword) { // Si un nouveau mot de passe est fourni, tester
+            gmailTestResultDiv.textContent = 'Test de la connexion Gmail en cours...';
+            gmailTestResultDiv.style.color = 'orange';
+            try {
+                const testResponse = await fetch(`${API_BASE_URL}/settings/test-gmail`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: managerEmail, appPassword: gmailPassword })
+                });
+                const testResult = await testResponse.json();
+                if (testResponse.ok && testResult.success) {
+                    gmailTestResultDiv.textContent = 'Connexion Gmail réussie ! Le mot de passe sera utilisé mais non stocké ici.';
+                    gmailTestResultDiv.style.color = 'green';
+                    if (configGmailAppPassword) configGmailAppPassword.value = ''; // Vider le champ après succès
+                    gmailTestPassed = true;
+                } else {
+                    gmailTestResultDiv.textContent = `Échec du test Gmail : ${testResult.message || 'Vérifiez les identifiants.'}`;
+                    gmailTestResultDiv.style.color = 'red';
+                    gmailTestPassed = false;
+                }
+            } catch (err) {
+                gmailTestResultDiv.textContent = `Erreur lors du test Gmail : ${err.message}`;
+                gmailTestResultDiv.style.color = 'red';
+                gmailTestPassed = false;
+            }
+        } else if (managerEmail && !gmailPassword && !(appSettings.manager && appSettings.manager.gmailAppPasswordStatus === 'success')) {
+            // Si l'email est là, mais pas de mdp et pas de succès précédent, indiquer que le mdp est nécessaire pour tester/activer
+            gmailTestResultDiv.textContent = 'Mot de passe d\'application requis pour activer/tester la connexion Gmail.';
+            gmailTestResultDiv.style.color = 'orange';
+            gmailTestPassed = false; // Ne pas considérer comme succès si on n'a pas de mdp et pas de succès antérieur
+        }
+
+
         const updatedSettings = {
             manager: {
                 name: configManagerName.value, title: configManagerTitle.value, description: configManagerDescription.value,
                 address: configManagerAddress.value, city: configManagerCity.value,
-                phone: configManagerPhone.value, email: configManagerEmail.value
+                phone: configManagerPhone.value, email: managerEmail, // GMAIL_USER
+                // Le GMAIL_APP_PASSWORD est envoyé au backend uniquement s'il est fourni pour le test/la sauvegarde.
+                // Le backend ne le stockera pas en clair mais l'utilisera pour configurer nodemailer.
+                // On stocke juste le statut du test.
+                gmailAppPassword: gmailPassword || undefined, // Envoyer si fourni, sinon undefined pour que le backend ne l'écrase pas s'il est déjà configuré
+                gmailAppPasswordStatus: gmailTestPassed ? 'success' : (appSettings.manager && appSettings.manager.gmailAppPasswordStatus === 'success' && !gmailPassword ? 'success' : 'failed_or_not_set')
             },
             tva: parseFloat(configTva.value) || 0,
             legal: {
@@ -1709,8 +1845,18 @@ if (configForm) {
                 body: JSON.stringify(updatedSettings)
             });
             if (!response.ok) throw new Error('Échec de la sauvegarde des paramètres');
-            appSettings = await response.json();
+            const savedSettings = await response.json(); // Récupérer les paramètres sauvegardés (sans le mdp)
+            appSettings = savedSettings; // Mettre à jour l'état global
             showToast('Paramètres enregistrés avec succès.');
+            // Mettre à jour l'affichage du statut du mot de passe après la sauvegarde
+             if(gmailTestResultDiv && appSettings.manager.gmailAppPasswordStatus === 'success' && !gmailPassword) {
+                gmailTestResultDiv.textContent = 'Connexion Gmail précédemment réussie.';
+                gmailTestResultDiv.style.color = 'green';
+            } else if (gmailTestResultDiv && !gmailPassword && appSettings.manager.gmailAppPasswordStatus !== 'success') {
+                 gmailTestResultDiv.textContent = ''; // Effacer si pas de mdp et pas de succès antérieur
+            }
+
+
         } catch (error) {
             showToast(`Erreur sauvegarde paramètres: ${error.message}`, 'error');
             console.error('Erreur de sauvegarde des paramètres :', error);
@@ -1720,12 +1866,12 @@ if (configForm) {
 
 // --- Initialisation ---
 async function initializeApp() {
-    await fetchSettings();
+    await fetchSettings(); // Charger les settings en premier pour GMAIL_USER etc.
     await fetchTarifs();
     await fetchClients();
     await fetchSeances();
 
-    const defaultView = 'viewSeances';
+    const defaultView = 'viewSeances'; // Ou 'viewDashboard' ou ce que vous préférez
     switchView(defaultView);
     if (defaultView === 'viewDashboard' && document.getElementById('viewDashboard').classList.contains('active')) {
         displaySessionsTrendChart();
