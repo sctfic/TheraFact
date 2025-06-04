@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Facture Template</title>
+    <title>Document</title> <!-- Sera changé par JS -->
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -37,15 +37,15 @@
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%) rotate(-50deg); /* Angle ajusté */
-            font-size: 128px; /* Taille ajustée */
-            color: rgba(0, 86, 179, 0.2); /* Couleur plus subtile et en accord avec le thème */
+            transform: translate(-50%, -50%) rotate(-45deg); 
+            font-size: 100px; 
+            color: rgba(0, 86, 179, 0.15); 
             text-transform: uppercase;
             pointer-events: none;
-            z-index: 1; /* Derrière le contenu */
+            z-index: 1; 
             font-weight: bold;
-            display: none; /* Caché par défaut, affiché par JS si statut pertinent */
-            white-space: nowrap; /* pas de retour a la line */
+            display: none; 
+            white-space: nowrap; 
         }
     </style>
 </head>
@@ -54,24 +54,26 @@
     <div class="header">
         <div class="manager-info">
             <strong><span id="manager-name">Nom du Thérapeute</span></strong><br>
+            <span id="manager-title"></span><br> <!-- Ajouté pour le titre du manager -->
+            <span id="manager-description"></span><br> <!-- Ajouté pour la description -->
             <span id="manager-address">Adresse</span><br><span id="manager-city">Ville</span><br>
             Téléphone : <span id="manager-phone"></span><br>Email : <span id="manager-email"></span>
         </div>
         <div class="invoice-info">
-            <strong>Date d'émission :</strong> <span id="current-date"></span><br>
-            <strong>Date d'échéance :</strong> <span id="due-date"></span>
+            <strong><span id="current-date-label">Date d'émission :</span></strong> <span id="current-date"></span><br>
+            <strong><span id="due-date-label">Date d'échéance :</span></strong> <span id="due-date"></span>
         </div>
     </div>
-    <div class="invoice-title">FACTURE</div>
+    <div class="invoice-title" id="document-title-main">FACTURE</div>
     <div style="text-align: center; margin-bottom: 2rem;">
-        <strong>Facture N° : <span style="color: #0056b3;" id="invoice-number">FAC-YYYY-XXXX</span></strong>
+        <strong><span id="invoice-number-label">Facture N° :</span> <span style="color: #0056b3;" id="invoice-number">FAC-YYYY-XXXX</span></strong>
     </div>
     <div class="client-info">
-        <strong>Facturé à :</strong><br>
+        <strong><span id="client-billed-to-label">Facturé à :</span></strong><br>
         <span id="client-name"></span><br><span id="client-address"></span><br><span id="client-city"></span>
     </div>
     <table>
-        <thead><tr><th>Date</th><th>Description</th><th>Qté</th><th>P.U. (€)</th><th>Total HT (€)</th></tr></thead>
+        <thead><tr><th><span id="item-date-header">Date</span></th><th>Description</th><th>Qté</th><th>P.U. (€)</th><th>Total HT (€)</th></tr></thead>
         <tbody id="invoice-items"></tbody>
     </table>
     <table> 
@@ -81,7 +83,7 @@
             <tr class="total-row"><td colspan="4" style="text-align:right;"><strong>Total TTC</strong></td><td style="text-align:right;"><strong><span id="total-ttc">0,00</span> €</strong></td></tr>
         </tbody>
     </table>
-    <div class="payment-total"><strong>MONTANT À RÉGLER : <span id="amount-to-pay">0,00</span> €</strong></div>
+    <div class="payment-total"><strong><span id="amount-to-pay-label">MONTANT À RÉGLER :</span> <span id="amount-to-pay">0,00</span> €</strong></div>
     <div class="legal-mentions">
         <h4>Mentions Légales</h4>
         <div class="legal-grid">
@@ -96,15 +98,15 @@
             </div>
         </div>
         <div class="legal-item"><strong>TVA :</strong> <span id="tva-mention"></span></div>
-        <div class="legal-item"><strong>Conditions de règlement :</strong> <span id="payment-terms"></span></div>
+        <div class="legal-item" id="payment-terms-container"><strong>Conditions de règlement :</strong> <span id="payment-terms"></span></div>
         <div class="legal-item"><strong>Assurance RCP :</strong> <span id="insurance-info"></span></div>
         <div class="legal-item" style="margin-top: 1rem; font-size: 0.8rem; color: #666;">
-            <em>Facture créée le <span id="creation-date"></span></em>
+            <em><span id="document-type-creation">Facture</span> créée le <span id="creation-date"></span></em>
         </div>
     </div>
 
     <script>
-        const API_BASE_URL_FOR_INVOICE_PAGE = 'http://fact.lpz.ovh:3000'; // Or your actual API base URL
+        const API_BASE_URL_FOR_INVOICE_PAGE = 'http://fact.lpz.ovh:3000'; 
 
         function getUrlParameter(name) {
             const urlParams = new URLSearchParams(window.location.search);
@@ -123,32 +125,26 @@
             return (typeof value === 'number' ? value : parseFloat(value || 0)).toFixed(2).replace('.', ',');
         }
 
-        async function loadAndSetWatermark(invoiceNumberForStatus) {
+        async function loadAndSetWatermark(docNumberForStatus) {
             const watermarkElement = document.getElementById('watermark');
-            if (!invoiceNumberForStatus || !watermarkElement) {
+            if (!docNumberForStatus || !watermarkElement) {
                 if(watermarkElement) watermarkElement.style.display = 'none';
                 return;
             }
             try {
-                // MODIFIED: Call new endpoint using invoiceNumber
-                const statusResponse = await fetch(`${API_BASE_URL_FOR_INVOICE_PAGE}/api/invoice/${invoiceNumberForStatus}/status`);
+                const statusResponse = await fetch(`${API_BASE_URL_FOR_INVOICE_PAGE}/api/invoice/${docNumberForStatus}/status`);
                 if (!statusResponse.ok) {
-                    console.warn(`Statut pour facture ${invoiceNumberForStatus} non trouvé ou erreur (${statusResponse.status})`);
+                    console.warn(`Statut pour document ${docNumberForStatus} non trouvé ou erreur (${statusResponse.status})`);
                     watermarkElement.style.display = 'none';
                     return;
                 }
                 const statusData = await statusResponse.json();
-                const statutSeance = statusData.statut_seance;
-                console.log(`Statut pour facture ${invoiceNumberForStatus} chargé: ${statutSeance}`);
+                console.log(`Statut pour document ${docNumberForStatus} chargé:`, statusData);
 
-                let watermarkText = '';
-                if (statutSeance === 'PAYEE') watermarkText = 'PAYÉE';
-                else if (statutSeance === 'APAYER') watermarkText = 'À PAYER';
-                else if (statutSeance === 'ANNULEE') watermarkText = 'ANNULÉE';
-                // Add other statuses if necessary
+                let watermarkText = statusData.statusText || ''; // Utilise statusText directement fourni par le backend
 
                 if (watermarkText) {
-                    watermarkElement.textContent = watermarkText;
+                    watermarkElement.textContent = watermarkText.toUpperCase(); // Assurer que c'est en majuscules
                     watermarkElement.style.display = 'block';
                 } else {
                     watermarkElement.style.display = 'none';
@@ -160,9 +156,31 @@
         }
 
         function updateInvoiceData(data) {
+            const isDevis = !!data.devisNumber; 
+            const docNumber = isDevis ? data.devisNumber : data.invoiceNumber;
+            const docDate = isDevis ? data.devisDate : data.invoiceDate;
+            const effectiveDueDateOrValidity = isDevis ? data.validityDate : data.dueDate;
+
+            document.title = isDevis ? `Devis ${docNumber}` : `Facture ${docNumber}`;
+            document.getElementById('document-title-main').textContent = isDevis ? 'DEVIS' : 'FACTURE';
+            document.getElementById('invoice-number-label').textContent = isDevis ? 'Devis N° :' : 'Facture N° :';
+            document.getElementById('invoice-number').textContent = docNumber || (isDevis ? 'DEV-YYYY-XXXX' : 'FAC-YYYY-XXXX');
+            
+            document.getElementById('current-date-label').textContent = "Date d'émission :";
+            document.getElementById('current-date').textContent = docDate || new Date().toLocaleDateString('fr-FR');
+            
+            document.getElementById('due-date-label').textContent = isDevis ? "Valide jusqu'au :" : "Date d'échéance :";
+            document.getElementById('due-date').textContent = effectiveDueDateOrValidity || new Date(new Date().setDate(new Date().getDate() + 30)).toLocaleDateString('fr-FR');
+
+            document.getElementById('client-billed-to-label').textContent = isDevis ? "Adressé à :" : "Facturé à :";
+            document.getElementById('item-date-header').textContent = isDevis ? "Date Prestation Prévue" : "Date";
+
+
             let total_ht = 0;
             if (data.manager) {
                 document.getElementById('manager-name').textContent = data.manager.name || 'N/A';
+                document.getElementById('manager-title').textContent = data.manager.title || '';
+                document.getElementById('manager-description').textContent = data.manager.description || '';
                 document.getElementById('manager-address').textContent = data.manager.address || 'N/A';
                 document.getElementById('manager-city').textContent = data.manager.city || 'N/A';
                 document.getElementById('manager-phone').textContent = data.manager.phone || 'N/A';
@@ -173,10 +191,9 @@
                 document.getElementById('client-address').textContent = data.client.address || 'N/A';
                 document.getElementById('client-city').textContent = data.client.city || 'N/A';
             }
-            document.getElementById('invoice-number').textContent = data.invoiceNumber || 'FAC-YYYY-XXXX';
-            document.getElementById('current-date').textContent = data.invoiceDate || new Date().toLocaleDateString('fr-FR');
-            document.getElementById('due-date').textContent = data.dueDate || new Date(new Date().setDate(new Date().getDate() + 30)).toLocaleDateString('fr-FR');
-            document.getElementById('creation-date').textContent = data.invoiceDate ? `${data.invoiceDate} (générée)` : new Date().toLocaleDateString('fr-FR');
+            
+            document.getElementById('creation-date').textContent = docDate ? `${docDate}` : new Date().toLocaleDateString('fr-FR');
+            document.getElementById('document-type-creation').textContent = isDevis ? 'Devis' : 'Facture';
             
             const itemsContainer = document.getElementById('invoice-items');
             itemsContainer.innerHTML = ''; 
@@ -186,7 +203,7 @@
                     const itemQuantity = parseFloat(item.quantity) || 1;
                     const itemUnitPrice = parseFloat(item.unitPrice) || 0;
                     const itemTotal = itemQuantity * itemUnitPrice;
-                    row.insertCell().textContent = item.Date || '-';
+                    row.insertCell().textContent = item.Date || '-'; 
                     row.insertCell().textContent = item.description || 'Service';
                     row.insertCell().textContent = itemQuantity;
                     row.insertCell().textContent = formatCurrency(itemUnitPrice) + ' €';
@@ -197,21 +214,24 @@
             if (itemsContainer.rows.length === 0) { 
                 const emptyRow = itemsContainer.insertRow();
                 emptyRow.insertCell().colSpan = 5;
-                emptyRow.insertCell().textContent = "Aucun service détaillé.";
+                emptyRow.textContent = "Aucun service détaillé."; // Correction ici
                 emptyRow.style.textAlign = "center";
             }
 
             const tvaRate = parseFloat(data.tva) || 0; 
             const tvaPercentage = tvaRate > 1 ? tvaRate : tvaRate * 100; 
             const tvaAsDecimal = tvaRate > 1 ? tvaRate / 100 : tvaRate;
+            const tvaAmount = total_ht * tvaAsDecimal;
+            const total_ttc = total_ht + tvaAmount;
 
             document.getElementById('total-ht').textContent = formatCurrency(total_ht);
             document.getElementById('tva-rate-info').textContent = formatCurrency(tvaPercentage); 
-            const tvaAmount = total_ht * tvaAsDecimal;
             document.getElementById('tva-amount').textContent = formatCurrency(tvaAmount);
-            const total_ttc = total_ht + tvaAmount;
             document.getElementById('total-ttc').textContent = formatCurrency(total_ttc);
+
+            document.getElementById('amount-to-pay-label').textContent = isDevis ? "MONTANT TOTAL DU DEVIS :" : "MONTANT À RÉGLER :";
             document.getElementById('amount-to-pay').textContent = formatCurrency(total_ttc);
+
 
             if (data.legal) {
                 document.getElementById('siret-number').textContent = data.legal.siret || 'N/A';
@@ -223,49 +243,48 @@
                 document.getElementById('payment-terms').textContent = data.legal.paymentTerms || 'Paiement à réception.';
                 document.getElementById('insurance-info').textContent = data.legal.insurance || 'N/A';
             }
+            document.getElementById('payment-terms-container').style.display = isDevis ? 'none' : 'block';
 
-            // MODIFIED: Call loadAndSetWatermark with data.invoiceNumber
-            if (data.invoiceNumber && data.invoiceNumber !== 'FAC-MODELE') { // Avoid calling for template
-                loadAndSetWatermark(data.invoiceNumber);
+
+            if (docNumber && docNumber !== 'FAC-MODELE' && docNumber !== 'DEV-MODELE') { 
+                loadAndSetWatermark(docNumber);
             } else {
                 const watermarkElement = document.getElementById('watermark');
                 if(watermarkElement) watermarkElement.style.display = 'none';
             }
         }
 
-        async function loadInvoiceFromJson(invoiceNumberToLoad) {
+        async function loadInvoiceFromJson(docNumberToLoad) { // Renommé pour clarté
             try {
-                // Assuming Facts directory is at the same level as invoice.html or accessible via relative path
-                // If invoice.html is in public/ and Facts is in public/Facts, this path is correct.
-                const jsonPath = `Facts/${invoiceNumberToLoad}.json`; 
+                const isDevis = docNumberToLoad.startsWith('DEV-');
+                const jsonDir = isDevis ? 'Devis' : 'Facts';
+                const jsonPath = `${jsonDir}/${docNumberToLoad}.json`; 
                 console.log(`Chargement du JSON: ${jsonPath}`);
-                const response = await fetch(jsonPath); // Relative path to JSON
-                if (!response.ok) throw new Error(`Fichier ${invoiceNumberToLoad}.json non trouvé (${response.status})`);
+                const response = await fetch(jsonPath); 
+                if (!response.ok) throw new Error(`Fichier ${docNumberToLoad}.json non trouvé (${response.status}) depuis ${jsonPath}`);
                 const data = await response.json();
-                console.log('Données facture JSON chargées:', data);
+                console.log('Données document JSON chargées:', data);
                 updateInvoiceData(data); 
             } catch (error) {
-                console.error('Erreur chargement facture JSON:', error);
+                console.error('Erreur chargement document JSON:', error);
                 showError(`Erreur: ${error.message}.`);
-                document.body.innerHTML = `<div style="text-align:center; padding: 50px;"><h1>Erreur</h1><p>Impossible de charger la facture : ${invoiceNumberToLoad}</p><p>${error.message}</p></div>`;
+                document.body.innerHTML = `<div style="text-align:center; padding: 50px;"><h1>Erreur</h1><p>Impossible de charger le document : ${docNumberToLoad}</p><p>${error.message}</p></div>`;
             }
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            const invoiceNumberFromUrl = getUrlParameter('invoiceNumber');
-            if (invoiceNumberFromUrl) {
-                console.log(`Numéro facture URL: ${invoiceNumberFromUrl}`);
-                loadInvoiceFromJson(invoiceNumberFromUrl);
+            const docNumberFromUrl = getUrlParameter('invoiceNumber'); // Le paramètre URL reste 'invoiceNumber' pour la compatibilité
+            if (docNumberFromUrl) {
+                console.log(`Numéro document URL: ${docNumberFromUrl}`);
+                loadInvoiceFromJson(docNumberFromUrl);
             } else {
-                console.log('Aucun numéro facture dans URL. Affichage du modèle.');
-                // showError('Paramètre "invoiceNumber" manquant dans l\'URL.'); // Optional: Show error or just template
-                // Display a template or default data if no invoiceNumber is provided
+                console.log('Aucun numéro de document dans URL. Affichage du modèle de facture.');
                 updateInvoiceData({ 
-                    manager: { name: "Votre Nom", title: "Votre Titre", address: "Votre Adresse", city: "Votre Ville", phone: "Votre Téléphone", email: "Votre Email" }, 
+                    manager: { name: "Votre Nom", title: "Votre Titre", description: "Votre activité", address: "Votre Adresse", city: "Votre Ville", phone: "Votre Téléphone", email: "Votre Email" }, 
                     client: { name: "Nom Client", address: "Adresse Client", city: "Ville Client" }, 
                     service: [{description: "Exemple de Prestation", quantity:1, unitPrice: 100, Date: new Date().toLocaleDateString('fr-FR')}], 
                     legal: { siret: "Votre SIRET", tvaMention: "TVA non applicable - Art. 293B du CGI", paymentTerms: "Paiement à réception." }, 
-                    invoiceNumber: 'FAC-MODELE', 
+                    invoiceNumber: 'FAC-MODELE', // Pour le modèle, c'est une facture
                     invoiceDate: new Date().toLocaleDateString('fr-FR'), 
                     dueDate: new Date(new Date().setDate(new Date().getDate() + 30)).toLocaleDateString('fr-FR'),
                     tva: 0 

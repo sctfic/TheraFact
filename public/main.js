@@ -1,13 +1,13 @@
 // main.js
-const API_BASE_URL = 'http://fact.lpz.ovh:3000/api'; 
-const INVOICE_PREVIEW_BASE_URL = 'http://fact.lpz.ovh'; 
+const API_BASE_URL = 'http://fact.lpz.ovh:3000/api';
+const INVOICE_PREVIEW_BASE_URL = 'http://fact.lpz.ovh';
 
 // --- État global de l'application ---
 let clients = [];
 let tarifs = [];
 let seances = [];
-let appSettings = {}; 
-let currentlyEditingRow = null; 
+let appSettings = {};
+let currentlyEditingRow = null;
 
 let editingClientId = null;
 let editingTarifId = null;
@@ -28,7 +28,7 @@ const cancelClientFormBtn = document.getElementById('cancelClientForm');
 const searchClientInput = document.getElementById('searchClientInput');
 const filterClientStatut = document.getElementById('filterClientStatut');
 const clientDefaultTarifSelect = document.getElementById('clientDefaultTarif');
-const clientVilleInput = document.getElementById('clientVille'); 
+const clientVilleInput = document.getElementById('clientVille');
 
 // Tarifs
 const tarifFormContainer = document.getElementById('tarifFormContainer');
@@ -73,7 +73,7 @@ const deleteModalMessage = document.getElementById('deleteModalMessage');
 // Éléments DOM pour la section Config
 const configForm = document.getElementById('configForm');
 const configManagerName = document.getElementById('configManagerName');
-const configManagerTitle = document.getElementById('configManagerTitle'); 
+const configManagerTitle = document.getElementById('configManagerTitle');
 const configManagerDescription = document.getElementById('configManagerDescription');
 const configManagerAddress = document.getElementById('configManagerAddress');
 const configManagerCity = document.getElementById('configManagerCity');
@@ -99,7 +99,10 @@ function generateUUID() {
 
 function showToast(message, type = 'info') {
     if (message.toLowerCase().includes('succès') || message.toLowerCase().includes('succes') || message.toLowerCase().includes('envoyée')) type = 'success';
-    if (message.toLowerCase().includes('erreur')) type = 'error';
+    if (message.toLowerCase().includes('erreur')) {
+        type = 'error';
+        console.error(message);
+    }
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
@@ -144,11 +147,11 @@ function switchView(viewId) {
     if (currentNavButton) currentNavButton.classList.add('active');
 
     if (viewId === 'viewDashboard') {
-        updateDashboardStats(); 
+        updateDashboardStats();
     } else if (viewId === 'viewConfig') {
         populateConfigForm();
     } else if (viewId === 'viewSeances') {
-        if (seances.length > 0) renderSeancesTable(); 
+        if (seances.length > 0) renderSeancesTable();
     }
 }
 navButtons.forEach(button => button.addEventListener('click', () => switchView('view' + button.id.substring(3))));
@@ -217,7 +220,7 @@ async function fetchClients() {
         if (!response.ok) throw new Error('Échec de la récupération des clients');
         clients = await response.json();
         renderClientsTable();
-        populateTarifDropdowns(); 
+        populateTarifDropdowns();
         updateDashboardStats();
     } catch (error) {
         showToast(`Erreur chargement clients: ${error.message}`, 'error');
@@ -231,8 +234,8 @@ async function fetchTarifs() {
         if (!response.ok) throw new Error('Échec de la récupération des tarifs');
         tarifs = await response.json();
         renderTarifsTable();
-        populateTarifDropdowns(); 
-        if(clients.length > 0) renderClientsTable();  
+        populateTarifDropdowns();
+        if(clients.length > 0) renderClientsTable();
         updateDashboardStats();
     } catch (error) {
         showToast(`Erreur chargement tarifs: ${error.message}`, 'error');
@@ -242,10 +245,10 @@ async function fetchTarifs() {
 
 async function fetchSeances() {
     try {
-        const response = await fetch(`${API_BASE_URL}/seances`); 
+        const response = await fetch(`${API_BASE_URL}/seances`);
         if (!response.ok) throw new Error('Échec de la récupération des séances');
         seances = await response.json();
-        console.log("Séances récupérées (après vérification intégrité):", seances); 
+        console.log("Séances récupérées (avec devis_number et après vérification intégrité):", seances);
         renderSeancesTable();
         updateDashboardStats();
     } catch (error) {
@@ -260,7 +263,7 @@ async function fetchSettings() {
         if (!response.ok) throw new Error('Échec de la récupération des paramètres');
         appSettings = await response.json();
         if (document.getElementById('viewConfig').classList.contains('active')) {
-            populateConfigForm(); 
+            populateConfigForm();
         }
     } catch (error) {
         showToast(`Erreur chargement paramètres: ${error.message}`, 'error');
@@ -288,9 +291,9 @@ if (btnAddClient) btnAddClient.addEventListener('click', () => {
     editingClientId = null;
     clientFormTitle.textContent = 'Ajouter un nouveau client';
     clientForm.reset();
-    document.getElementById('clientId').value = ''; 
-    populateTarifDropdowns(); 
-    if (clientDefaultTarifSelect) clientDefaultTarifSelect.value = ""; 
+    document.getElementById('clientId').value = '';
+    populateTarifDropdowns();
+    if (clientDefaultTarifSelect) clientDefaultTarifSelect.value = "";
     clientFormContainer.classList.remove('hidden');
 });
 if (cancelClientFormBtn) cancelClientFormBtn.addEventListener('click', () => {
@@ -307,7 +310,7 @@ if (clientForm) clientForm.addEventListener('submit', async (event) => {
         telephone: document.getElementById('clientTelephone').value,
         email: document.getElementById('clientEmail').value,
         adresse: document.getElementById('clientAdresse').value,
-        ville: clientVilleInput.value, 
+        ville: clientVilleInput.value,
         notes: document.getElementById('clientNotes').value,
         defaultTarifId: clientDefaultTarifSelect.value || null,
         statut: editingClientId ? clients.find(c => c.id === editingClientId).statut : 'actif',
@@ -341,16 +344,16 @@ async function toggleClientStatus(clientId) {
     if (client) {
         client.statut = client.statut === 'actif' ? 'inactif' : 'actif';
         try {
-            const response = await fetch(`${API_BASE_URL}/clients`, { 
-                method: 'POST', 
+            const response = await fetch(`${API_BASE_URL}/clients`, {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(client) 
+                body: JSON.stringify(client)
             });
             if (!response.ok) throw new Error('Échec de la mise à jour du statut du client');
-            renderClientsTable(); 
+            renderClientsTable();
             showToast('Statut client mis à jour.');
         } catch (error) {
-            client.statut = client.statut === 'actif' ? 'inactif' : 'actif'; 
+            client.statut = client.statut === 'actif' ? 'inactif' : 'actif';
             showToast(`Erreur mise à jour statut client: ${error.message}`, 'error');
             console.error('Erreur de bascule de statut :', error);
         }
@@ -359,11 +362,11 @@ async function toggleClientStatus(clientId) {
 
 function renderClientsTable() {
     if (!clientsTableBody) return;
-    clientsTableBody.innerHTML = ''; 
+    clientsTableBody.innerHTML = '';
     const searchTerm = searchClientInput ? searchClientInput.value.toLowerCase() : "";
     const statutFilter = filterClientStatut ? filterClientStatut.value : "";
 
-    const filteredClients = clients.filter(client => 
+    const filteredClients = clients.filter(client =>
         (client.nom.toLowerCase().includes(searchTerm) || client.prenom.toLowerCase().includes(searchTerm)) &&
         (statutFilter === "" || client.statut === statutFilter)
     );
@@ -379,9 +382,9 @@ function renderClientsTable() {
         row.insertCell().textContent = client.prenom;
         row.insertCell().textContent = client.telephone || '-';
         row.insertCell().textContent = client.email || '-';
-        row.insertCell().textContent = client.adresse || '-'; 
-        row.insertCell().textContent = client.ville || '-';   
-        
+        row.insertCell().textContent = client.adresse || '-';
+        row.insertCell().textContent = client.ville || '-';
+
         const statusCell = row.insertCell();
         statusCell.classList.add('status-cell');
         const statusCheckbox = document.createElement('input');
@@ -394,7 +397,7 @@ function renderClientsTable() {
         const defaultTarif = tarifs.find(t => t.id === client.defaultTarifId);
         row.insertCell().textContent = defaultTarif ? `${defaultTarif.libelle} (${parseFloat(defaultTarif.montant).toFixed(2)}€)` : '-';
         row.insertCell().textContent = client.dateCreation ? new Date(client.dateCreation).toLocaleDateString('fr-FR') : '-';
-        
+
         const actionsCell = row.insertCell();
         actionsCell.classList.add('actions-cell');
         const editBtn = document.createElement('button');
@@ -420,7 +423,7 @@ function loadClientForEdit(clientId) {
         document.getElementById('clientTelephone').value = client.telephone || '';
         document.getElementById('clientEmail').value = client.email || '';
         document.getElementById('clientAdresse').value = client.adresse || '';
-        if (clientVilleInput) clientVilleInput.value = client.ville || ''; 
+        if (clientVilleInput) clientVilleInput.value = client.ville || '';
         document.getElementById('clientNotes').value = client.notes || '';
         populateTarifDropdowns();
         if (clientDefaultTarifSelect) clientDefaultTarifSelect.value = client.defaultTarifId || "";
@@ -479,7 +482,7 @@ if (tarifForm) tarifForm.addEventListener('submit', async (event) => {
 
 function renderTarifsTable() {
     if (!tarifsTableBody) return;
-    tarifsTableBody.innerHTML = ''; 
+    tarifsTableBody.innerHTML = '';
     if (tarifs.length === 0) {
         tarifsTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Aucun tarif défini.</td></tr>';
         return;
@@ -517,15 +520,15 @@ if (btnAddSeance) btnAddSeance.addEventListener('click', () => {
     editingSeanceId = null;
     seanceFormTitle.textContent = 'Ajouter une nouvelle séance';
     seanceForm.reset();
-    if (seanceClientIdInput) seanceClientIdInput.value = ''; 
+    if (seanceClientIdInput) seanceClientIdInput.value = '';
     if (seanceClientNameInput) seanceClientNameInput.value = '';
-    if (seanceClientIdInput) seanceClientIdInput.removeAttribute('data-client-id'); 
+    if (seanceClientIdInput) seanceClientIdInput.removeAttribute('data-client-id');
     document.getElementById('seanceId').value = '';
     populateTarifDropdowns();
     if (seanceTarifSelect) seanceTarifSelect.value = '';
     if (seanceMontantInput) seanceMontantInput.value = '';
-    document.getElementById('seanceDate').value = new Date().toISOString().slice(0, 16); 
-    toggleSeancePaymentFields('APAYER'); 
+    document.getElementById('seanceDate').value = new Date().toISOString().slice(0, 16);
+    toggleSeancePaymentFields('APAYER');
     seanceFormContainer.classList.remove('hidden');
 });
 if (cancelSeanceFormBtn) cancelSeanceFormBtn.addEventListener('click', () => {
@@ -533,7 +536,7 @@ if (cancelSeanceFormBtn) cancelSeanceFormBtn.addEventListener('click', () => {
     seanceForm.reset();
     editingSeanceId = null;
     if (clientAutocompleteResults) {
-        clientAutocompleteResults.innerHTML = ''; 
+        clientAutocompleteResults.innerHTML = '';
         clientAutocompleteResults.classList.add('hidden');
     }
 });
@@ -542,7 +545,7 @@ if (seanceClientNameInput) {
     seanceClientNameInput.addEventListener('input', () => {
         const searchTerm = seanceClientNameInput.value.toLowerCase();
         clientAutocompleteResults.innerHTML = '';
-        if (searchTerm.length < 1) { 
+        if (searchTerm.length < 1) {
             clientAutocompleteResults.classList.add('hidden');
             return;
         }
@@ -565,7 +568,7 @@ if (seanceClientNameInput) {
     seanceClientNameInput.addEventListener('change', () => {
         if (seanceClientNameInput.value && !seanceClientIdInput.value) {
             const clientNameFromInput = seanceClientNameInput.value.trim();
-            const foundClient = clients.find(c => 
+            const foundClient = clients.find(c =>
                 `${c.prenom} ${c.nom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase() ||
                 `${c.nom} ${c.prenom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase()
             );
@@ -591,9 +594,9 @@ function selectClientForSeance(client) {
     clientAutocompleteResults.classList.add('hidden');
     if (client.defaultTarifId && tarifs.find(t => t.id === client.defaultTarifId)) {
         seanceTarifSelect.value = client.defaultTarifId;
-        updateSeanceMontant(); 
+        updateSeanceMontant();
     } else {
-        seanceTarifSelect.value = ''; 
+        seanceTarifSelect.value = '';
         seanceMontantInput.value = '';
     }
 }
@@ -617,7 +620,7 @@ function toggleSeancePaymentFields(statut) {
     if (statut === 'PAYEE') {
         seanceModePaiementGroup.classList.remove('hidden');
         seanceDatePaiementGroup.classList.remove('hidden');
-        if (!document.getElementById('seanceDatePaiement').value) { 
+        if (!document.getElementById('seanceDatePaiement').value) {
              document.getElementById('seanceDatePaiement').valueAsDate = new Date();
         }
     } else {
@@ -634,18 +637,18 @@ if (seanceForm) seanceForm.addEventListener('submit', async (event) => {
     const clientNameFromInput = seanceClientNameInput.value.trim();
 
     if (!idClient && clientNameFromInput) {
-        const foundClient = clients.find(c => 
+        const foundClient = clients.find(c =>
             `${c.prenom} ${c.nom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase() ||
-            `${c.nom} ${c.prenom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase() 
+            `${c.nom} ${c.prenom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase()
         );
         if (foundClient) {
             idClient = foundClient.id;
-            seanceClientIdInput.value = idClient; 
+            seanceClientIdInput.value = idClient;
         }
     }
-    
+
     if (!idClient || !clients.find(c => c.id === idClient)) {
-        showToast("Client invalide. Veuillez sélectionner un client dans la liste.", "error"); 
+        showToast("Client invalide. Veuillez sélectionner un client dans la liste.", "error");
         return;
     }
 
@@ -667,7 +670,8 @@ if (seanceForm) seanceForm.addEventListener('submit', async (event) => {
         statut_seance: seanceStatutSelect.value,
         mode_paiement: seanceStatutSelect.value === 'PAYEE' ? (seanceModePaiementSelect.value || null) : null,
         date_paiement: seanceStatutSelect.value === 'PAYEE' && document.getElementById('seanceDatePaiement').value ? document.getElementById('seanceDatePaiement').value : null,
-        invoice_number: editingSeanceId ? (seances.find(s => s.id_seance === editingSeanceId)?.invoice_number || null) : null 
+        invoice_number: editingSeanceId ? (seances.find(s => s.id_seance === editingSeanceId)?.invoice_number || null) : null,
+        devis_number: editingSeanceId ? (seances.find(s => s.id_seance === editingSeanceId)?.devis_number || null) : null
     };
 
     try {
@@ -677,7 +681,7 @@ if (seanceForm) seanceForm.addEventListener('submit', async (event) => {
             body: JSON.stringify(seanceData)
         });
         if (!response.ok) throw new Error('Échec de la sauvegarde de la séance');
-        await fetchSeances(); 
+        await fetchSeances();
         seanceFormContainer.classList.add('hidden');
         seanceForm.reset();
         editingSeanceId = null;
@@ -700,7 +704,7 @@ function renderSeancesTable() {
     const filteredSeances = seances.filter(seance => {
         const client = clients.find(c => c.id === seance.id_client);
         const clientName = client ? `${client.prenom} ${client.nom}`.toLowerCase() : '';
-        
+
         const matchesClient = !clientSearchTerm || clientName.includes(clientSearchTerm);
         const matchesStatut = !statutFilter || seance.statut_seance === statutFilter;
 
@@ -709,22 +713,24 @@ function renderSeancesTable() {
             const seanceDateOnly = seance.date_heure_seance.split('T')[0];
             if (dateStartFilter && seanceDateOnly < dateStartFilter) matchesDate = false;
             if (dateEndFilter && seanceDateOnly > dateEndFilter) matchesDate = false;
-        } else { 
-            if(dateStartFilter || dateEndFilter) matchesDate = false; 
+        } else {
+            if(dateStartFilter || dateEndFilter) matchesDate = false;
         }
         return matchesClient && matchesStatut && matchesDate;
-    });
+    }).sort((a, b) => new Date(b.date_heure_seance) - new Date(a.date_heure_seance));
+
 
     if (filteredSeances.length === 0) {
         seancesTableBody.innerHTML = '<tr><td colspan="9" style="text-align:center;">Aucune séance trouvée.</td></tr>';
         return;
     }
-    
-    filteredSeances.sort((a, b) => new Date(b.date_heure_seance) - new Date(a.date_heure_seance));
+
+    const today = new Date();
+    today.setHours(0,0,0,0); // For date-only comparison
 
     filteredSeances.forEach(seance => {
         const row = seancesTableBody.insertRow();
-        row.dataset.seanceId = seance.id_seance; 
+        row.dataset.seanceId = seance.id_seance;
 
         row.insertCell().textContent = seance.date_heure_seance ? new Date(seance.date_heure_seance).toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '-';
         const client = clients.find(c => c.id === seance.id_client);
@@ -734,7 +740,7 @@ function renderSeancesTable() {
         row.insertCell().textContent = parseFloat(seance.montant_facture).toFixed(2) + ' €';
 
         const statutCell = row.insertCell();
-        statutCell.dataset.column = "statut_seance"; 
+        statutCell.dataset.column = "statut_seance";
         let statutText = seance.statut_seance;
         if(seance.statut_seance === 'APAYER') statutText = 'À Payer';
         else if(seance.statut_seance === 'PAYEE') statutText = 'Payée';
@@ -742,54 +748,104 @@ function renderSeancesTable() {
         statutCell.textContent = statutText;
 
         const modePaiementCell = row.insertCell();
-        modePaiementCell.dataset.column = "mode_paiement"; 
+        modePaiementCell.dataset.column = "mode_paiement";
         modePaiementCell.textContent = seance.mode_paiement || '-';
 
         const datePaiementCell = row.insertCell();
-        datePaiementCell.dataset.column = "date_paiement"; 
+        datePaiementCell.dataset.column = "date_paiement";
         datePaiementCell.textContent = seance.date_paiement ? new Date(seance.date_paiement).toLocaleDateString('fr-FR') : '-';
-        
+
         const invoiceCell = row.insertCell();
         invoiceCell.classList.add('invoice-cell');
-        if (seance.invoice_number) {
-            const invoiceLink = document.createElement('a');
-            invoiceLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
-            invoiceLink.textContent = seance.invoice_number;
-            invoiceLink.target = '_blank';
-            invoiceLink.style.marginRight = '5px';
-            invoiceCell.appendChild(invoiceLink);
+        invoiceCell.innerHTML = ''; // Clear previous content
 
-            const emailBtn = document.createElement('button');
-            emailBtn.innerHTML = '&#9993;'; // Symbole enveloppe Unicode
-            emailBtn.classList.add('btn', 'btn-info', 'btn-sm');
-            emailBtn.title = 'Envoyer la facture par email';
-            emailBtn.style.padding = '0.2rem 0.4rem'; 
-            emailBtn.style.fontSize = '0.9rem'; 
-            emailBtn.onclick = (e) => {
-                e.stopPropagation(); 
-                sendInvoiceByEmail(seance.id_seance, seance.invoice_number, client ? client.email : null);
-            };
-            invoiceCell.appendChild(emailBtn);
+        const seanceDate = new Date(seance.date_heure_seance);
+        // Ne pas appeler setHours sur seanceDate ici pour garder l'heure pour la comparaison exacte
+        const isFutureSeance = new Date(seance.date_heure_seance) > new Date();
 
-        } else { 
-            const btnFacturer = document.createElement('button');
-            btnFacturer.textContent = 'Facturer';
-            btnFacturer.classList.add('btn', 'btn-success', 'btn-sm'); 
-            btnFacturer.onclick = (e) => {
-                e.stopPropagation(); 
-                generateInvoiceForSeance(seance.id_seance);
-            };
-            invoiceCell.appendChild(btnFacturer);
+
+        if (isFutureSeance) {
+            if (seance.devis_number) {
+                const devisLink = document.createElement('a');
+                devisLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.devis_number}`;
+                devisLink.textContent = seance.devis_number;
+                devisLink.target = '_blank';
+                devisLink.style.marginRight = '5px';
+                invoiceCell.appendChild(devisLink);
+
+                const emailDevisBtn = document.createElement('button');
+                emailDevisBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer devis" style="height: 1.3em; vertical-align: middle;">';
+                emailDevisBtn.classList.add('btn', 'btn-info', 'btn-sm');
+                emailDevisBtn.title = 'Envoyer le devis par email';
+                emailDevisBtn.style.padding = '0.1rem 0.2rem';
+                emailDevisBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    sendDevisByEmail(seance.id_seance, seance.devis_number, client ? client.email : null);
+                };
+                invoiceCell.appendChild(emailDevisBtn);
+            } else if (!seance.invoice_number) { // Can only generate devis if not already invoiced
+                const btnGenererDevis = document.createElement('button');
+                btnGenererDevis.textContent = 'Devis';
+                btnGenererDevis.classList.add('btn', 'btn-primary', 'btn-sm');
+                btnGenererDevis.onclick = (e) => {
+                    e.stopPropagation();
+                    generateDevisForSeance(seance.id_seance);
+                };
+                invoiceCell.appendChild(btnGenererDevis);
+            } else { // Future seance but already invoiced
+                 const invoiceLink = document.createElement('a');
+                 invoiceLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
+                 invoiceLink.textContent = seance.invoice_number;
+                 invoiceLink.target = '_blank';
+                 invoiceLink.style.marginRight = '5px';
+                 invoiceCell.appendChild(invoiceLink);
+                 // Optionnel: bouton email pour facture future
+            }
+        } else { // Past or Today Seance
+            if (seance.invoice_number) {
+                const invoiceLink = document.createElement('a');
+                invoiceLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
+                invoiceLink.textContent = seance.invoice_number;
+                invoiceLink.target = '_blank';
+                invoiceLink.style.marginRight = '5px';
+                invoiceCell.appendChild(invoiceLink);
+
+                const emailBtn = document.createElement('button');
+                emailBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer facture" style="height: 1.3em; vertical-align: middle;">';
+                emailBtn.classList.add('btn', 'btn-info', 'btn-sm');
+                emailBtn.title = 'Envoyer la facture par email';
+                emailBtn.style.padding = '0.1rem 0.2rem';
+                emailBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    sendInvoiceByEmail(seance.id_seance, seance.invoice_number, client ? client.email : null);
+                };
+                invoiceCell.appendChild(emailBtn);
+            } else { // Not invoiced yet
+                if (seance.devis_number) {
+                    const devisInfo = document.createElement('span');
+                    devisInfo.textContent = `(Devis: ${seance.devis_number}) `;
+                    devisInfo.style.fontSize = '0.8em';
+                    devisInfo.style.marginRight = '3px';
+                    invoiceCell.appendChild(devisInfo);
+                }
+                const btnFacturer = document.createElement('button');
+                btnFacturer.textContent = 'Facturer';
+                btnFacturer.classList.add('btn', 'btn-success', 'btn-sm');
+                btnFacturer.onclick = (e) => {
+                    e.stopPropagation();
+                    generateInvoiceForSeance(seance.id_seance);
+                };
+                invoiceCell.appendChild(btnFacturer);
+            }
         }
-        
+
         const actionsCell = row.insertCell();
         actionsCell.classList.add('actions-cell');
-
-        if (!seance.invoice_number) { 
+        if (!seance.invoice_number) {
             const editBtn = document.createElement('button');
-            editBtn.textContent = 'Modifier'; 
+            editBtn.textContent = 'Modifier';
             editBtn.classList.add('btn', 'btn-warning', 'btn-sm');
-            editBtn.style.marginRight = '5px'; 
+            editBtn.style.marginRight = '5px';
             editBtn.onclick = (e) => {
                 e.stopPropagation();
                 loadSeanceForEdit(seance.id_seance);
@@ -797,7 +853,7 @@ function renderSeancesTable() {
             actionsCell.appendChild(editBtn);
 
             const deleteBtn = document.createElement('button');
-            deleteBtn.textContent = 'Supprimer'; 
+            deleteBtn.textContent = 'Supprimer';
             deleteBtn.classList.add('btn', 'btn-danger', 'btn-sm');
             deleteBtn.onclick = (e) => {
                 e.stopPropagation();
@@ -805,7 +861,7 @@ function renderSeancesTable() {
             };
             actionsCell.appendChild(deleteBtn);
         } else {
-            actionsCell.textContent = '-'; 
+            actionsCell.textContent = '-';
         }
 
         row.addEventListener('dblclick', handleSeanceRowDblClick);
@@ -813,9 +869,8 @@ function renderSeancesTable() {
 }
 
 async function generateInvoiceForSeance(seanceId) {
-    if (currentlyEditingRow) { 
-        const currentSeanceId = currentlyEditingRow.dataset.seanceId;
-        const currentSeance = seances.find(s => s.id_seance === currentSeanceId);
+    if (currentlyEditingRow && currentlyEditingRow.dataset.seanceId === seanceId) {
+        const currentSeance = seances.find(s => s.id_seance === seanceId);
         if (currentSeance) await saveRowChanges(currentlyEditingRow, currentSeance);
     }
     showToast('Génération de la facture en cours...', 'info');
@@ -824,30 +879,58 @@ async function generateInvoiceForSeance(seanceId) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
         });
-        const result = await response.json(); 
+        const result = await response.json();
         if (!response.ok) {
             throw new Error(result.message || 'Échec de la génération de la facture');
         }
         showToast(`Facture ${result.invoiceNumber} générée.`, 'success');
-        
+
         const seanceIndex = seances.findIndex(s => s.id_seance === seanceId);
         if (seanceIndex > -1) {
             seances[seanceIndex].invoice_number = result.invoiceNumber;
-            if (result.newSeanceStatus) { 
+            seances[seanceIndex].devis_number = null; // Annuler le devis si facturé
+            if (result.newSeanceStatus) {
                 seances[seanceIndex].statut_seance = result.newSeanceStatus;
             }
         }
-        renderSeancesTable(); 
+        renderSeancesTable();
     } catch (error) {
         showToast(`Erreur: ${error.message}`, 'error');
         console.error('Erreur génération facture:', error);
     }
 }
 
+async function generateDevisForSeance(seanceId) {
+    if (currentlyEditingRow && currentlyEditingRow.dataset.seanceId === seanceId) {
+        const seance = seances.find(s => s.id_seance === seanceId);
+        if (seance) await saveRowChanges(currentlyEditingRow, seance);
+    }
+    showToast('Génération du devis en cours...', 'info');
+    try {
+        const response = await fetch(`${API_BASE_URL}/seances/${seanceId}/generate-devis`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.message || 'Échec de la génération du devis');
+        }
+        showToast(`Devis ${result.devisNumber} généré.`, 'success');
+
+        const seanceIndex = seances.findIndex(s => s.id_seance === seanceId);
+        if (seanceIndex > -1) {
+            seances[seanceIndex].devis_number = result.devisNumber;
+        }
+        renderSeancesTable();
+    } catch (error) {
+        showToast(`Erreur génération devis: ${error.message}`, 'error');
+        console.error('Erreur génération devis:', error);
+    }
+}
+
 async function sendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
-    if (currentlyEditingRow) {
-        const currentSeanceId = currentlyEditingRow.dataset.seanceId;
-        const currentSeance = seances.find(s => s.id_seance === currentSeanceId);
+    if (currentlyEditingRow && currentlyEditingRow.dataset.seanceId === seanceId) {
+        const currentSeance = seances.find(s => s.id_seance === seanceId);
         if (currentSeance) await saveRowChanges(currentlyEditingRow, currentSeance);
     }
 
@@ -855,7 +938,6 @@ async function sendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
         showToast("L'email du manager n'est pas configuré dans les paramètres.", "error");
         return;
     }
-    // const managerEmail = appSettings.manager.email; // Déjà récupéré dans les settings
 
     if (!clientEmail) {
         const clientForSeance = clients.find(c => c.id === seances.find(s => s.id_seance === seanceId)?.id_client);
@@ -872,7 +954,7 @@ async function sendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ clientEmail: clientEmail }) 
+            body: JSON.stringify({ clientEmail: clientEmail })
         });
 
         const result = await response.json();
@@ -888,7 +970,40 @@ async function sendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
         console.error("Erreur lors de l'envoi de l'email via le serveur:", error);
     }
 }
-        
+
+async function sendDevisByEmail(seanceId, devisNumber, clientEmail) {
+    if (currentlyEditingRow && currentlyEditingRow.dataset.seanceId === seanceId) {
+        const seance = seances.find(s => s.id_seance === seanceId);
+       if (seance) await saveRowChanges(currentlyEditingRow, seance);
+    }
+
+    if (!appSettings || !appSettings.manager || !appSettings.manager.email) {
+        showToast("L'email du manager n'est pas configuré dans les paramètres.", "error"); return;
+    }
+    if (!clientEmail) {
+        const clientForSeance = clients.find(c => c.id === seances.find(s => s.id_seance === seanceId)?.id_client);
+        showToast(`L'email pour ${clientForSeance ? clientForSeance.prenom + ' ' + clientForSeance.nom : 'ce client'} n'est pas disponible.`, "error");
+        return;
+    }
+
+    showToast(`Envoi de l'email pour le devis ${devisNumber}...`, 'info');
+    try {
+        const response = await fetch(`${API_BASE_URL}/devis/${devisNumber}/send-by-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientEmail: clientEmail })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.message || `Erreur serveur (${response.status}) lors de l'envoi de l'email du devis.`);
+        }
+        showToast(result.message || `Devis ${devisNumber} envoyé avec succès à ${clientEmail}.`, 'success');
+    } catch (error) {
+        showToast(`Erreur envoi email devis: ${error.message}`, 'error');
+        console.error("Erreur envoi email devis:", error);
+    }
+}
+
 if (searchSeanceClientInput) searchSeanceClientInput.addEventListener('input', renderSeancesTable);
 if (filterSeanceStatut) filterSeanceStatut.addEventListener('change', renderSeancesTable);
 if (filterSeanceDateStart) filterSeanceDateStart.addEventListener('input', renderSeancesTable);
@@ -912,38 +1027,38 @@ async function handleSeanceRowDblClick(event) {
         const oldSeanceId = currentlyEditingRow.dataset.seanceId;
         const oldSeance = seances.find(s => s.id_seance === oldSeanceId);
         if (oldSeance) {
-            await saveRowChanges(currentlyEditingRow, oldSeance); 
+            await saveRowChanges(currentlyEditingRow, oldSeance);
         } else {
-             revertRowToDisplayMode(currentlyEditingRow, null); 
+             revertRowToDisplayMode(currentlyEditingRow, null);
         }
     }
-    
-    if (currentlyEditingRow === row) return; 
 
-    currentlyEditingRow = row; 
+    if (currentlyEditingRow === row) return;
+
+    currentlyEditingRow = row;
     const seance = seances.find(s => s.id_seance === seanceId);
     if (!seance) {
-        currentlyEditingRow = null; 
+        currentlyEditingRow = null;
         return;
     }
-    
+
     const statusCell = row.querySelector('td[data-column="statut_seance"]');
     if (statusCell) {
         makeCellEditable(statusCell, seance, 'statut_seance');
     }
-    
+
     const statutSelectElement = statusCell ? statusCell.querySelector('select') : null;
     const currentStatusInEdit = statutSelectElement ? statutSelectElement.value : seance.statut_seance;
-    togglePaymentFieldsInRow(row, seance, currentStatusInEdit); 
+    togglePaymentFieldsInRow(row, seance, currentStatusInEdit);
 }
 
 function makeCellEditable(cell, seance, columnName) {
     if (!cell || (cell.querySelector('input') || cell.querySelector('select'))) {
-        return; 
+        return;
     }
-    
+
     const originalValue = seance[columnName];
-    cell.innerHTML = ''; 
+    cell.innerHTML = '';
 
     let inputElement;
 
@@ -958,7 +1073,7 @@ function makeCellEditable(cell, seance, columnName) {
             if (key === originalValue) option.selected = true;
             inputElement.appendChild(option);
         }
-        inputElement.addEventListener('change', () => { 
+        inputElement.addEventListener('change', () => {
             togglePaymentFieldsInRow(cell.parentElement, seance, inputElement.value);
         });
 
@@ -977,11 +1092,11 @@ function makeCellEditable(cell, seance, columnName) {
         inputElement = document.createElement('input');
         inputElement.type = 'date';
         inputElement.classList.add('form-input-sm');
-        inputElement.value = originalValue ? (originalValue.includes('T') ? originalValue.split('T')[0] : originalValue) : ''; 
+        inputElement.value = originalValue ? (originalValue.includes('T') ? originalValue.split('T')[0] : originalValue) : '';
     } else {
-        return; 
+        return;
     }
-    
+
     if (inputElement) {
         inputElement.style.width = '100%';
         cell.appendChild(inputElement);
@@ -990,7 +1105,7 @@ function makeCellEditable(cell, seance, columnName) {
         inputElement.addEventListener('blur', async (e) => {
             const relatedTarget = e.relatedTarget;
             const currentRow = cell.closest('tr');
-            if (relatedTarget && currentRow && currentRow.contains(relatedTarget) && 
+            if (relatedTarget && currentRow && currentRow.contains(relatedTarget) &&
                 (relatedTarget.tagName === 'INPUT' || relatedTarget.tagName === 'SELECT')) {
                 return;
             }
@@ -998,16 +1113,16 @@ function makeCellEditable(cell, seance, columnName) {
         });
         inputElement.addEventListener('keydown', async (e) => {
             if (e.key === 'Enter') {
-                e.preventDefault(); 
+                e.preventDefault();
                 await saveRowChanges(cell.parentElement, seance);
             } else if (e.key === 'Escape') {
-                revertRowToDisplayMode(cell.parentElement, seance); 
-                currentlyEditingRow = null; 
+                revertRowToDisplayMode(cell.parentElement, seance);
+                currentlyEditingRow = null;
             }
         });
     }
 }
-        
+
 function togglePaymentFieldsInRow(row, seance, currentStatut) {
     const modePaiementCell = row.querySelector('td[data-column="mode_paiement"]');
     const datePaiementCell = row.querySelector('td[data-column="date_paiement"]');
@@ -1019,31 +1134,31 @@ function togglePaymentFieldsInRow(row, seance, currentStatut) {
             makeCellEditable(modePaiementCell, seance, 'mode_paiement');
         }
         if (!datePaiementCell.querySelector('input[type="date"]')) {
-            let seanceForDateEdit = {...seance}; 
-            if (!seanceForDateEdit.date_paiement) { 
+            let seanceForDateEdit = {...seance};
+            if (!seanceForDateEdit.date_paiement) {
                 seanceForDateEdit.date_paiement = new Date().toISOString().split('T')[0];
             }
             makeCellEditable(datePaiementCell, seanceForDateEdit, 'date_paiement');
         }
-    } else { 
-        if (modePaiementCell.querySelector('select')) modePaiementCell.innerHTML = seance.mode_paiement || '-'; 
+    } else {
+        if (modePaiementCell.querySelector('select')) modePaiementCell.innerHTML = seance.mode_paiement || '-';
         if (datePaiementCell.querySelector('input[type="date"]')) datePaiementCell.innerHTML = seance.date_paiement ? new Date(seance.date_paiement).toLocaleDateString('fr-FR') : '-';
     }
 }
 
 async function saveRowChanges(row, seanceRef) {
     if (!row || !row.dataset || !row.dataset.seanceId || !seanceRef) {
-        if (row) revertRowToDisplayMode(row, seanceRef); 
+        if (row) revertRowToDisplayMode(row, seanceRef);
         currentlyEditingRow = null;
         return;
     }
 
     const seanceId = row.dataset.seanceId;
-    let seanceToUpdate = { ...seances.find(s => s.id_seance === seanceId) }; 
+    let seanceToUpdate = { ...seances.find(s => s.id_seance === seanceId) };
 
     if (!seanceToUpdate) {
         showToast("Erreur: Séance non trouvée pour la mise à jour.", "error");
-        revertRowToDisplayMode(row, null); 
+        revertRowToDisplayMode(row, null);
         currentlyEditingRow = null;
         return;
     }
@@ -1064,7 +1179,7 @@ async function saveRowChanges(row, seanceRef) {
             seanceToUpdate.mode_paiement = newModePaiement;
             hasChanges = true;
         }
-        
+
         const newDatePaiement = datePaiementInputElement ? (datePaiementInputElement.value || null) : seanceToUpdate.date_paiement;
         const oldDatePaiementNormalized = seanceToUpdate.date_paiement ? (seanceToUpdate.date_paiement.includes('T') ? seanceToUpdate.date_paiement.split('T')[0] : seanceToUpdate.date_paiement) : null;
 
@@ -1072,7 +1187,7 @@ async function saveRowChanges(row, seanceRef) {
             seanceToUpdate.date_paiement = newDatePaiement;
             hasChanges = true;
         }
-    } else { 
+    } else {
         if (seanceToUpdate.mode_paiement !== null) {
             seanceToUpdate.mode_paiement = null; hasChanges = true;
         }
@@ -1080,15 +1195,15 @@ async function saveRowChanges(row, seanceRef) {
             seanceToUpdate.date_paiement = null; hasChanges = true;
         }
     }
-    
+
     if (!hasChanges) {
-        revertRowToDisplayMode(row, seanceToUpdate); 
+        revertRowToDisplayMode(row, seanceToUpdate);
         currentlyEditingRow = null;
         return;
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/seances`, { 
+        const response = await fetch(`${API_BASE_URL}/seances`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(seanceToUpdate)
@@ -1102,28 +1217,28 @@ async function saveRowChanges(row, seanceRef) {
         if (index > -1) {
             seances[index] = seanceToUpdate;
         }
-        revertRowToDisplayMode(row, seanceToUpdate); 
+        revertRowToDisplayMode(row, seanceToUpdate);
     } catch (error) {
         showToast(`Erreur MAJ séance: ${error.message}`, 'error');
         console.error('Erreur de mise à jour de la séance :', error);
-        const originalSeance = seances.find(s => s.id_seance === seanceId); 
-        revertRowToDisplayMode(row, originalSeance || seanceRef); 
+        const originalSeance = seances.find(s => s.id_seance === seanceId);
+        revertRowToDisplayMode(row, originalSeance || seanceRef);
     } finally {
-        currentlyEditingRow = null; 
+        currentlyEditingRow = null;
     }
 }
 
 function revertRowToDisplayMode(row, seance) {
     if (!row) return;
     const seanceId = row.dataset.seanceId;
-    
-    if (!seance && seanceId) { 
+
+    if (!seance && seanceId) {
         seance = seances.find(s => s.id_seance === seanceId);
     }
-    if (!seance) { 
+    if (!seance) {
          row.querySelectorAll('td[data-column]').forEach(cell => {
             if (cell.firstChild && (cell.firstChild.tagName === 'INPUT' || cell.firstChild.tagName === 'SELECT')) {
-                cell.innerHTML = '-'; 
+                cell.innerHTML = '-';
             }
          });
         return;
@@ -1147,54 +1262,103 @@ function revertRowToDisplayMode(row, seance) {
     if (datePaiementCell) {
         datePaiementCell.innerHTML = seance.date_paiement ? new Date(seance.date_paiement).toLocaleDateString('fr-FR') : '-';
     }
-    
+
+    // Re-render invoice/devis cell specifically
     const invoiceCell = row.querySelector('.invoice-cell');
-    if(invoiceCell){
-        const client = clients.find(c => c.id === seance.id_client);
-        invoiceCell.innerHTML = ''; 
-        if (seance.invoice_number) {
-            const invoiceLink = document.createElement('a');
-            invoiceLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
-            invoiceLink.textContent = seance.invoice_number;
-            invoiceLink.target = '_blank';
-            invoiceLink.style.marginRight = '5px';
-            invoiceCell.appendChild(invoiceLink);
-
-            const emailBtn = document.createElement('button');
-            emailBtn.innerHTML = '&#9993;';
-            emailBtn.classList.add('btn', 'btn-info', 'btn-sm');
-            emailBtn.title = 'Envoyer la facture par email';
-            emailBtn.style.padding = '0.2rem 0.4rem';
-            emailBtn.style.fontSize = '0.9rem';
-            emailBtn.onclick = (e) => { e.stopPropagation(); sendInvoiceByEmail(seance.id_seance, seance.invoice_number, client ? client.email : null);};
-            invoiceCell.appendChild(emailBtn);
-        } else {
-            const btnFacturer = document.createElement('button');
-            btnFacturer.textContent = 'Facturer';
-            btnFacturer.classList.add('btn', 'btn-success', 'btn-sm');
-            btnFacturer.onclick = (e) => { e.stopPropagation(); generateInvoiceForSeance(seance.id_seance); };
-            invoiceCell.appendChild(btnFacturer);
-        }
-    }
     const actionsCell = row.querySelector('.actions-cell');
-    if(actionsCell) {
-        actionsCell.innerHTML = ''; 
-        if (!seance.invoice_number) {
-            const editBtn = document.createElement('button');
-            editBtn.textContent = 'Modifier'; editBtn.classList.add('btn', 'btn-warning', 'btn-sm');
-            editBtn.style.marginRight = '5px'; 
-            editBtn.onclick = (e) => { e.stopPropagation(); loadSeanceForEdit(seance.id_seance);};
-            actionsCell.appendChild(editBtn);
+    if (invoiceCell && seance) {
+        invoiceCell.innerHTML = ''; // Clear current content
+        if (actionsCell) actionsCell.innerHTML = ''; // Clear current actions
 
-            const deleteBtn = document.createElement('button');
-            deleteBtn.textContent = 'Supprimer'; deleteBtn.classList.add('btn', 'btn-danger', 'btn-sm');
-            deleteBtn.onclick = (e) => { e.stopPropagation(); openDeleteModal(seance.id_seance, 'seance', `Séance du ${new Date(seance.date_heure_seance).toLocaleDateString()}`);};
-            actionsCell.appendChild(deleteBtn);
-        } else {
-            actionsCell.textContent = '-';
+        const today = new Date(); today.setHours(0,0,0,0);
+        const seanceDate = new Date(seance.date_heure_seance);
+        const isFutureSeance = new Date(seance.date_heure_seance) > new Date(); // Compare with full datetime
+        const client = clients.find(c => c.id === seance.id_client);
+
+        if (isFutureSeance) {
+            if (seance.devis_number) {
+                const devisLink = document.createElement('a');
+                devisLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.devis_number}`;
+                devisLink.textContent = seance.devis_number;
+                devisLink.target = '_blank';
+                devisLink.style.marginRight = '5px';
+                invoiceCell.appendChild(devisLink);
+
+                const emailDevisBtn = document.createElement('button');
+                emailDevisBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer devis" style="height: 1.3em; vertical-align: middle;">';
+                emailDevisBtn.classList.add('btn', 'btn-info', 'btn-sm');
+                emailDevisBtn.title = 'Envoyer le devis par email';
+                emailDevisBtn.style.padding = '0.1rem 0.2rem';
+                emailDevisBtn.onclick = (e) => { e.stopPropagation(); sendDevisByEmail(seance.id_seance, seance.devis_number, client ? client.email : null);};
+                invoiceCell.appendChild(emailDevisBtn);
+            } else if (!seance.invoice_number) {
+                const btnGenererDevis = document.createElement('button');
+                btnGenererDevis.textContent = 'Devis';
+                btnGenererDevis.classList.add('btn', 'btn-primary', 'btn-sm');
+                btnGenererDevis.onclick = (e) => { e.stopPropagation(); generateDevisForSeance(seance.id_seance); };
+                invoiceCell.appendChild(btnGenererDevis);
+            } else { // Future but already invoiced
+                 const invoiceLink = document.createElement('a');
+                 invoiceLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
+                 invoiceLink.textContent = seance.invoice_number;
+                 invoiceLink.target = '_blank';
+                 invoiceLink.style.marginRight = '5px';
+                 invoiceCell.appendChild(invoiceLink);
+            }
+        } else { // Past or Today
+            if (seance.invoice_number) {
+                const invoiceLink = document.createElement('a');
+                invoiceLink.href = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
+                invoiceLink.textContent = seance.invoice_number;
+                invoiceLink.target = '_blank';
+                invoiceLink.style.marginRight = '5px';
+                invoiceCell.appendChild(invoiceLink);
+
+                const emailBtn = document.createElement('button');
+                emailBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer facture" style="height: 1.3em; vertical-align: middle;">';
+                emailBtn.classList.add('btn', 'btn-info', 'btn-sm');
+                emailBtn.title = 'Envoyer la facture par email';
+                emailBtn.style.padding = '0.1rem 0.2rem';
+                emailBtn.onclick = (e) => { e.stopPropagation(); sendInvoiceByEmail(seance.id_seance, seance.invoice_number, client ? client.email : null);};
+                invoiceCell.appendChild(emailBtn);
+            } else {
+                if (seance.devis_number) {
+                    const devisInfo = document.createElement('span');
+                    devisInfo.textContent = `(Devis: ${seance.devis_number}) `;
+                    devisInfo.style.fontSize = '0.8em';
+                    devisInfo.style.marginRight = '3px';
+                    invoiceCell.appendChild(devisInfo);
+                }
+                const btnFacturer = document.createElement('button');
+                btnFacturer.textContent = 'Facturer';
+                btnFacturer.classList.add('btn', 'btn-success', 'btn-sm');
+                btnFacturer.onclick = (e) => { e.stopPropagation(); generateInvoiceForSeance(seance.id_seance); };
+                invoiceCell.appendChild(btnFacturer);
+            }
         }
+        // Re-populate actions cell
+        if (actionsCell) {
+            if (!seance.invoice_number) {
+                const editBtn = document.createElement('button');
+                editBtn.textContent = 'Modifier'; editBtn.classList.add('btn', 'btn-warning', 'btn-sm');
+                editBtn.style.marginRight = '5px';
+                editBtn.onclick = (e) => { e.stopPropagation(); loadSeanceForEdit(seance.id_seance);};
+                actionsCell.appendChild(editBtn);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Supprimer'; deleteBtn.classList.add('btn', 'btn-danger', 'btn-sm');
+                deleteBtn.onclick = (e) => { e.stopPropagation(); openDeleteModal(seance.id_seance, 'seance', `Séance du ${new Date(seance.date_heure_seance).toLocaleDateString()}`);};
+                actionsCell.appendChild(deleteBtn);
+            } else {
+                actionsCell.textContent = '-';
+            }
+        }
+    } else if (invoiceCell) {
+        invoiceCell.innerHTML = '-';
+        if (actionsCell) actionsCell.innerHTML = '-';
     }
 }
+
 
 document.addEventListener('click', async (event) => {
     if (currentlyEditingRow && !currentlyEditingRow.contains(event.target)) {
@@ -1202,14 +1366,14 @@ document.addEventListener('click', async (event) => {
         if (event.target.closest('tr') === currentlyEditingRow && event.target.tagName === 'BUTTON') {
             targetIsActionButtonInSameRow = true;
         }
-        
+
         if (!targetIsActionButtonInSameRow) {
             const seanceId = currentlyEditingRow.dataset.seanceId;
             const seance = seances.find(s => s.id_seance === seanceId);
             if (seance) {
-                await saveRowChanges(currentlyEditingRow, seance); 
+                await saveRowChanges(currentlyEditingRow, seance);
             } else {
-                revertRowToDisplayMode(currentlyEditingRow, null); 
+                revertRowToDisplayMode(currentlyEditingRow, null);
                 currentlyEditingRow = null;
             }
         }
@@ -1222,20 +1386,20 @@ function loadSeanceForEdit(seanceId) {
 
     if (seance.invoice_number) {
         showToast("Cette séance est facturée. Seuls le statut et les informations de paiement peuvent être modifiés par double-clic dans le tableau.", "warning");
-        return; 
+        return;
     }
-    
+
     if (currentlyEditingRow) {
         const currentSeanceId = currentlyEditingRow.dataset.seanceId;
-        if (currentSeanceId !== seanceId) { 
+        if (currentSeanceId !== seanceId) {
             const currentSeance = seances.find(s => s.id_seance === currentSeanceId);
-            if (currentSeance) saveRowChanges(currentlyEditingRow, currentSeance); 
+            if (currentSeance) saveRowChanges(currentlyEditingRow, currentSeance);
         }
     }
 
-    editingSeanceId = seanceId; 
+    editingSeanceId = seanceId;
     document.getElementById('seanceId').value = seance.id_seance;
-    
+
     const client = clients.find(c => c.id === seance.id_client);
     seanceClientNameInput.value = client ? `${client.prenom} ${client.nom}` : '';
     seanceClientIdInput.value = seance.id_client;
@@ -1245,13 +1409,13 @@ function loadSeanceForEdit(seanceId) {
     seanceTarifSelect.value = seance.id_tarif;
     seanceMontantInput.value = parseFloat(seance.montant_facture).toFixed(2);
     seanceStatutSelect.value = seance.statut_seance;
-    
-    toggleSeancePaymentFields(seance.statut_seance); 
+
+    toggleSeancePaymentFields(seance.statut_seance);
     if (seance.statut_seance === 'PAYEE') {
         seanceModePaiementSelect.value = seance.mode_paiement || '';
         document.getElementById('seanceDatePaiement').value = seance.date_paiement ? (seance.date_paiement.includes('T') ? seance.date_paiement.split('T')[0] : seance.date_paiement) : '';
     }
-    
+
     seanceFormTitle.textContent = 'Modifier la séance';
     seanceFormContainer.classList.remove('hidden');
 }
@@ -1259,7 +1423,7 @@ function loadSeanceForEdit(seanceId) {
 
 // --- Statistiques du Tableau de Bord ---
 function updateDashboardStats() {
-    console.log("Mise à jour des statistiques du tableau de bord..."); 
+    console.log("Mise à jour des statistiques du tableau de bord...");
     if(document.getElementById('statClientsCount')) document.getElementById('statClientsCount').textContent = clients.length;
     if(document.getElementById('statSeancesCount')) document.getElementById('statSeancesCount').textContent = seances.length;
 
@@ -1267,7 +1431,7 @@ function updateDashboardStats() {
     if(document.getElementById('statSeancesPayees')) document.getElementById('statSeancesPayees').textContent = seancesPayees.length;
 
     const now = new Date();
-    const moisActuel = now.getMonth(); 
+    const moisActuel = now.getMonth();
     const anneeActuelle = now.getFullYear();
     let caMoisEnCours = 0;
     let caMoisPrecedent = 0;
@@ -1275,7 +1439,7 @@ function updateDashboardStats() {
     let caAnneePrecedente = 0;
 
     seancesPayees.forEach(seance => {
-        if (!seance.date_paiement) return; 
+        if (!seance.date_paiement) return;
         const date = new Date(seance.date_paiement);
         const mois = date.getMonth();
         const annee = date.getFullYear();
@@ -1287,7 +1451,7 @@ function updateDashboardStats() {
             if (mois === moisActuel) {
                 caMoisEnCours += montant;
             }
-        } 
+        }
         else if (annee === anneeActuelle - 1) {
             caAnneePrecedente += montant;
         }
@@ -1301,7 +1465,7 @@ function updateDashboardStats() {
     if(document.getElementById('caMoisPrecedent')) document.getElementById('caMoisPrecedent').textContent = caMoisPrecedent.toFixed(2);
     if(document.getElementById('caAnneeEnCours')) document.getElementById('caAnneeEnCours').textContent = caAnneeEnCours.toFixed(2);
     if(document.getElementById('caAnneePrecedente')) document.getElementById('caAnneePrecedente').textContent = caAnneePrecedente.toFixed(2);
-    
+
     const viewDashboard = document.getElementById('viewDashboard');
     if (viewDashboard && viewDashboard.classList.contains('active')) {
          displaySessionsTrendChart();
@@ -1313,13 +1477,13 @@ function getPeriodStartDate(dateStr, periodType) {
     if (!dateStr) return null;
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return null;
-    d.setHours(0, 0, 0, 0); 
+    d.setHours(0, 0, 0, 0);
 
     if (periodType === 'day') {
         return d;
     } else if (periodType === 'week') {
-        const day = d.getDay(); 
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
         return new Date(d.setDate(diff));
     } else if (periodType === 'month') {
         return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -1329,14 +1493,14 @@ function getPeriodStartDate(dateStr, periodType) {
     } else if (periodType === 'year') {
         return new Date(d.getFullYear(), 0, 1);
     }
-    return d; 
+    return d;
 }
 
 function formatPeriodForDisplay(date, periodType) {
     const d = new Date(date);
     if (periodType === 'day') return d3.timeFormat("%d/%m/%y")(d);
-    if (periodType === 'week') return `S${d3.timeFormat("%W-%y")(d)}`; 
-    if (periodType === 'month') return d3.timeFormat("%b %Y")(d); 
+    if (periodType === 'week') return `S${d3.timeFormat("%W-%y")(d)}`;
+    if (periodType === 'month') return d3.timeFormat("%b %Y")(d);
     if (periodType === 'quarter') return `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
     if (periodType === 'year') return d3.timeFormat("%Y")(d);
     return d.toLocaleDateString();
@@ -1346,7 +1510,7 @@ function prepareChartData(allSeances, periodType) {
     if (!allSeances || allSeances.length === 0) {
         return [];
     }
-    const aggregatedData = {}; 
+    const aggregatedData = {};
     allSeances.forEach(seance => {
         const montantFacture = parseFloat(seance.montant_facture || 0);
         if (seance.date_heure_seance) {
@@ -1391,7 +1555,7 @@ function prepareChartData(allSeances, periodType) {
 
 function renderSessionsTrendChart(chartData) {
     if(!sessionsTrendChartContainer) return;
-    sessionsTrendChartContainer.innerHTML = ''; 
+    sessionsTrendChartContainer.innerHTML = '';
     if (!chartData || chartData.length === 0) {
         sessionsTrendChartContainer.innerHTML = "<p style='text-align:center; padding-top: 20px; color:#666;'>Pas de données suffisantes pour afficher le graphique.</p>";
         return;
@@ -1403,7 +1567,7 @@ function renderSessionsTrendChart(chartData) {
     }
     const margin = {top: 30, right: 70, bottom: 110, left: 60},
           width = Math.max(0, containerWidth - margin.left - margin.right),
-          height = Math.max(0, 400 - margin.top - margin.bottom); 
+          height = Math.max(0, 400 - margin.top - margin.bottom);
     if (width <= 0 || height <= 0) {
         sessionsTrendChartContainer.innerHTML = "<p style='text-align:center; padding-top: 20px; color:#666;'>Espace insuffisant pour afficher le graphique.</p>";
         return;
@@ -1421,7 +1585,7 @@ function renderSessionsTrendChart(chartData) {
     svg.append("g").attr("class", "axis axis--x").attr("transform", `translate(0,${height})`).call(xAxis)
         .selectAll("text").style("text-anchor", "end").attr("dx", "-.8em").attr("dy", ".15em").attr("transform", "rotate(-45)");
     svg.append("g").attr("class", "axis axis--y-counts").call(d3.axisLeft(yCounts))
-      .append("text").attr("fill", "#000").attr("transform", "rotate(-90)").attr("y", -margin.left + 15) 
+      .append("text").attr("fill", "#000").attr("transform", "rotate(-90)").attr("y", -margin.left + 15)
         .attr("x", -height/2).attr("dy", "0.71em").attr("text-anchor", "middle").text("Nombre de Séances");
     svg.append("g").attr("class", "axis axis--y-amounts").attr("transform", `translate(${width},0)`).call(d3.axisRight(yAmounts))
       .append("text").attr("fill", "#000").attr("transform", "rotate(-90)").attr("y", margin.right - 25)
@@ -1438,7 +1602,7 @@ function renderSessionsTrendChart(chartData) {
           .attr("x", d => x(d.data.periodLabel)).attr("y", d => yCounts(d[1]))
           .attr("height", d => Math.max(0, yCounts(d[0]) - yCounts(d[1]))).attr("width", x.bandwidth())
           .on("mouseover", function(event, d) {
-              const key = d3.select(this.parentNode).datum().key; 
+              const key = d3.select(this.parentNode).datum().key;
               let count; let label;
               if (key === 'cancelledSessions') { count = d.data.cancelledSessions; label = 'Annulées';}
               else if (key === 'paidSessions') { count = d.data.paidSessions; label = 'Payées';}
@@ -1453,8 +1617,8 @@ function renderSessionsTrendChart(chartData) {
               svg.selectAll(".bar-stack-cancelledSessions rect, .bar-stack-paidSessions rect, .bar-stack-toPaySessions rect").style("opacity", 1);
           });
     const linePaidAmount = d3.line().x(d => x(d.periodLabel) + x.bandwidth() / 2).y(d => yAmounts(d.paidAmount))
-        .defined(d => d.paidAmount !== undefined && d.paidAmount !== null); 
-    svg.append("path").datum(chartData.map(d => ({...d, paidAmount: d.paidAmount || 0}))) 
+        .defined(d => d.paidAmount !== undefined && d.paidAmount !== null);
+    svg.append("path").datum(chartData.map(d => ({...d, paidAmount: d.paidAmount || 0})))
         .attr("class", "line paid-amount-line").attr("fill", "none").attr("stroke", "#007bff")
         .attr("stroke-width", 2.5).attr("d", linePaidAmount);
     svg.selectAll(".dot-paid-amount").data(chartData.filter(d => d.paidAmount !== undefined && d.paidAmount !== null && d.paidAmount > 0))
@@ -1470,7 +1634,7 @@ function renderSessionsTrendChart(chartData) {
         { color: '#ffc107', text: "Séances à Payer" }, { color: '#28a745', text: "Séances Payées" },
         { color: '#dc3545', text: "Séances Annulées" }, { color: "#007bff", text: "Montant Payé (€) (Ligne)" }
     ];
-    const legendContainer = svg.append("g").attr("class", "legend-container").attr("transform", `translate(0, ${height + margin.bottom - 45})`); 
+    const legendContainer = svg.append("g").attr("class", "legend-container").attr("transform", `translate(0, ${height + margin.bottom - 45})`);
     const legend = legendContainer.selectAll(".legend-item").data(legendData).enter().append("g")
         .attr("class", "legend-item").attr("transform", (d, i) => `translate(${i * 140}, 0)`);
     legend.append("rect").attr("x", 0).attr("y", 0).attr("width", 18).attr("height", 18).style("fill", d => d.color);
@@ -1488,9 +1652,9 @@ function displaySessionsTrendChart() {
     if (!viewDashboard || !viewDashboard.classList.contains('active')) {
         return;
     }
-    const periodType = chartPeriodSelector ? chartPeriodSelector.value : 'month'; 
-    const chartData = prepareChartData(seances, periodType); 
-    renderSessionsTrendChart(chartData); 
+    const periodType = chartPeriodSelector ? chartPeriodSelector.value : 'month';
+    const chartData = prepareChartData(seances, periodType);
+    renderSessionsTrendChart(chartData);
 }
 
 if (chartPeriodSelector) {
@@ -1499,11 +1663,11 @@ if (chartPeriodSelector) {
 
 // --- Gestion de la Configuration ---
 function populateConfigForm() {
-    if (!appSettings || !configForm) return; 
+    if (!appSettings || !configForm) return;
     if (appSettings.manager) {
         if(configManagerName) configManagerName.value = appSettings.manager.name || '';
-        if(configManagerTitle) configManagerTitle.value = appSettings.manager.title || ''; 
-        if(configManagerDescription) configManagerDescription.value = appSettings.manager.description || ''; 
+        if(configManagerTitle) configManagerTitle.value = appSettings.manager.title || '';
+        if(configManagerDescription) configManagerDescription.value = appSettings.manager.description || '';
         if(configManagerAddress) configManagerAddress.value = appSettings.manager.address || '';
         if(configManagerCity) configManagerCity.value = appSettings.manager.city || '';
         if(configManagerPhone) configManagerPhone.value = appSettings.manager.phone || '';
@@ -1527,7 +1691,7 @@ if (configForm) {
         event.preventDefault();
         const updatedSettings = {
             manager: {
-                name: configManagerName.value, title: configManagerTitle.value, description: configManagerDescription.value, 
+                name: configManagerName.value, title: configManagerTitle.value, description: configManagerDescription.value,
                 address: configManagerAddress.value, city: configManagerCity.value,
                 phone: configManagerPhone.value, email: configManagerEmail.value
             },
@@ -1545,7 +1709,7 @@ if (configForm) {
                 body: JSON.stringify(updatedSettings)
             });
             if (!response.ok) throw new Error('Échec de la sauvegarde des paramètres');
-            appSettings = await response.json(); 
+            appSettings = await response.json();
             showToast('Paramètres enregistrés avec succès.');
         } catch (error) {
             showToast(`Erreur sauvegarde paramètres: ${error.message}`, 'error');
@@ -1556,13 +1720,13 @@ if (configForm) {
 
 // --- Initialisation ---
 async function initializeApp() {
-    await fetchSettings(); 
-    await fetchTarifs(); 
+    await fetchSettings();
+    await fetchTarifs();
     await fetchClients();
-    await fetchSeances(); 
-    
-    const defaultView = 'viewSeances'; 
-    switchView(defaultView); 
+    await fetchSeances();
+
+    const defaultView = 'viewSeances';
+    switchView(defaultView);
     if (defaultView === 'viewDashboard' && document.getElementById('viewDashboard').classList.contains('active')) {
         displaySessionsTrendChart();
     }

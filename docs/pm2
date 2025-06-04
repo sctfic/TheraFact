@@ -2,3 +2,8 @@ pm2 start ecosystem.config.js
 pm2 save
 pm2 startup
         ===>>  sudo .....
+
+npm install nodemailer
+pm2 reload ecosystem.config.js
+
+npm install puppeteer

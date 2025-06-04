@@ -1,0 +1,5 @@
+nano ~/.bashrc
+
+// ajouter a la fin du fichier 
+export GMAIL_USER="my.email@gmail.com"
+export GMAIL_APP_PASSWORD="th-------------fh"
