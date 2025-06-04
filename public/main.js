@@ -1,3 +1,4 @@
+// main.js
 const API_BASE_URL = 'http://fact.lpz.ovh:3000/api'; 
 const INVOICE_PREVIEW_BASE_URL = 'http://fact.lpz.ovh'; 
 
@@ -97,7 +98,7 @@ function generateUUID() {
 }
 
 function showToast(message, type = 'info') {
-    if (message.toLowerCase().includes('succès') || message.toLowerCase().includes('succes')) type = 'success';
+    if (message.toLowerCase().includes('succès') || message.toLowerCase().includes('succes') || message.toLowerCase().includes('envoyée')) type = 'success';
     if (message.toLowerCase().includes('erreur')) type = 'error';
 
     const toast = document.createElement('div');
@@ -143,7 +144,7 @@ function switchView(viewId) {
     if (currentNavButton) currentNavButton.classList.add('active');
 
     if (viewId === 'viewDashboard') {
-        updateDashboardStats(); // This will trigger displaySessionsTrendChart
+        updateDashboardStats(); 
     } else if (viewId === 'viewConfig') {
         populateConfigForm();
     } else if (viewId === 'viewSeances') {
@@ -241,7 +242,7 @@ async function fetchTarifs() {
 
 async function fetchSeances() {
     try {
-        const response = await fetch(`${API_BASE_URL}/seances`); // This endpoint now handles data integrity
+        const response = await fetch(`${API_BASE_URL}/seances`); 
         if (!response.ok) throw new Error('Échec de la récupération des séances');
         seances = await response.json();
         console.log("Séances récupérées (après vérification intégrité):", seances); 
@@ -539,8 +540,6 @@ if (cancelSeanceFormBtn) cancelSeanceFormBtn.addEventListener('click', () => {
 
 if (seanceClientNameInput) {
     seanceClientNameInput.addEventListener('input', () => {
-        console.log('Input event on seanceClientNameInput. Value:', seanceClientNameInput.value);
-        console.log('Current seanceClientIdInput before autocomplete logic:', seanceClientIdInput.value);
         const searchTerm = seanceClientNameInput.value.toLowerCase();
         clientAutocompleteResults.innerHTML = '';
         if (searchTerm.length < 1) { 
@@ -564,19 +563,14 @@ if (seanceClientNameInput) {
         }
     });
     seanceClientNameInput.addEventListener('change', () => {
-        console.log('Change event on seanceClientNameInput. Value:', seanceClientNameInput.value);
         if (seanceClientNameInput.value && !seanceClientIdInput.value) {
-            console.log('Change event: Client name present, ID missing. Attempting to match.');
             const clientNameFromInput = seanceClientNameInput.value.trim();
             const foundClient = clients.find(c => 
                 `${c.prenom} ${c.nom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase() ||
                 `${c.nom} ${c.prenom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase()
             );
             if (foundClient) {
-                console.log('Client matched by name on change event:', foundClient);
                 selectClientForSeance(foundClient);
-            } else {
-                console.log('Client not matched by name on change event. ID remains empty.');
             }
         }
     });
@@ -591,10 +585,8 @@ document.addEventListener('click', function(event) {
 
 
 function selectClientForSeance(client) {
-    console.log('selectClientForSeance called with client:', client);
     seanceClientNameInput.value = `${client.prenom} ${client.nom}`;
     seanceClientIdInput.value = client.id;
-    console.log('seanceClientIdInput after selection in selectClientForSeance:', seanceClientIdInput.value);
     clientAutocompleteResults.innerHTML = '';
     clientAutocompleteResults.classList.add('hidden');
     if (client.defaultTarifId && tarifs.find(t => t.id === client.defaultTarifId)) {
@@ -638,29 +630,22 @@ function toggleSeancePaymentFields(statut) {
 
 if (seanceForm) seanceForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    console.log('Form submit initiated. seanceClientNameInput.value =', seanceClientNameInput.value, ', seanceClientIdInput.value =', seanceClientIdInput.value);
-    
     let idClient = seanceClientIdInput.value;
     const clientNameFromInput = seanceClientNameInput.value.trim();
 
     if (!idClient && clientNameFromInput) {
-        console.log('Client ID is missing on submit, attempting to find client by name:', clientNameFromInput);
         const foundClient = clients.find(c => 
             `${c.prenom} ${c.nom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase() ||
             `${c.nom} ${c.prenom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase() 
         );
         if (foundClient) {
-            console.log('Client found by name on submit:', foundClient);
             idClient = foundClient.id;
             seanceClientIdInput.value = idClient; 
-        } else {
-            console.log('Client not found by name from input field on submit.');
         }
     }
     
     if (!idClient || !clients.find(c => c.id === idClient)) {
-        console.error('Client ID invalide ou non trouvé après vérification. ID:', idClient, "Nom entré:", clientNameFromInput);
-        showToast("Client invalide. Veuillez sélectionner un client dans la liste déroulante ou vérifier que le nom entré correspond exactement à un client existant.", "error"); 
+        showToast("Client invalide. Veuillez sélectionner un client dans la liste.", "error"); 
         return;
     }
 
@@ -684,7 +669,6 @@ if (seanceForm) seanceForm.addEventListener('submit', async (event) => {
         date_paiement: seanceStatutSelect.value === 'PAYEE' && document.getElementById('seanceDatePaiement').value ? document.getElementById('seanceDatePaiement').value : null,
         invoice_number: editingSeanceId ? (seances.find(s => s.id_seance === editingSeanceId)?.invoice_number || null) : null 
     };
-    console.log('Data de séance à sauvegarder:', seanceData);
 
     try {
         const response = await fetch(`${API_BASE_URL}/seances`, {
@@ -776,11 +760,11 @@ function renderSeancesTable() {
             invoiceCell.appendChild(invoiceLink);
 
             const emailBtn = document.createElement('button');
-            emailBtn.innerHTML = '&#9993;'; // Envelope icon
+            emailBtn.innerHTML = '&#9993;'; // Symbole enveloppe Unicode
             emailBtn.classList.add('btn', 'btn-info', 'btn-sm');
             emailBtn.title = 'Envoyer la facture par email';
-            emailBtn.style.padding = '0.2rem 0.4rem'; // Smaller padding
-            emailBtn.style.fontSize = '0.9rem'; // Adjust icon size if needed
+            emailBtn.style.padding = '0.2rem 0.4rem'; 
+            emailBtn.style.fontSize = '0.9rem'; 
             emailBtn.onclick = (e) => {
                 e.stopPropagation(); 
                 sendInvoiceByEmail(seance.id_seance, seance.invoice_number, client ? client.email : null);
@@ -860,21 +844,6 @@ async function generateInvoiceForSeance(seanceId) {
     }
 }
 
-function minifyHTML(htmlString) {
-    if (!htmlString) return '';
-    try {
-        let minified = htmlString.replace(/<!--[\s\S]*?-->/g, '');
-        minified = minified.replace(/\s*>\s*/g, '><'); 
-        minified = minified.replace(/\s\s+/g, ' ');    
-        minified = minified.trim();
-        return minified;
-    } catch (e) {
-        console.error("Erreur de minification HTML:", e);
-        return htmlString; 
-    }
-}
-
-
 async function sendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
     if (currentlyEditingRow) {
         const currentSeanceId = currentlyEditingRow.dataset.seanceId;
@@ -886,7 +855,7 @@ async function sendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
         showToast("L'email du manager n'est pas configuré dans les paramètres.", "error");
         return;
     }
-    const managerEmail = appSettings.manager.email;
+    // const managerEmail = appSettings.manager.email; // Déjà récupéré dans les settings
 
     if (!clientEmail) {
         const clientForSeance = clients.find(c => c.id === seances.find(s => s.id_seance === seanceId)?.id_client);
@@ -895,36 +864,28 @@ async function sendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
         return;
     }
 
-    showToast(`Préparation de l'email pour la facture ${invoiceNumber}...`, 'info');
+    showToast(`Envoi de l'email pour la facture ${invoiceNumber}...`, 'info');
 
     try {
-        const invoiceUrl = `${INVOICE_PREVIEW_BASE_URL}/invoice.html?invoiceNumber=${invoiceNumber}`;
-        const response = await fetch(invoiceUrl);
+        const response = await fetch(`${API_BASE_URL}/invoice/${invoiceNumber}/send-by-email`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ clientEmail: clientEmail }) 
+        });
+
+        const result = await response.json();
+
         if (!response.ok) {
-            throw new Error(`Impossible de récupérer le contenu de la facture (HTTP ${response.status})`);
-        }
-        const invoiceHtmlContent = await response.text();
-        const minifiedHtmlBody = minifyHTML(invoiceHtmlContent);
-        
-        const subject = `Facture ${invoiceNumber} - ${appSettings.manager.name || 'Votre Cabinet'}`;
-        const emailGreeting = `Bonjour,\n\nVeuillez trouver ci-joint votre facture ${invoiceNumber}.\n\nCordialement,\n${appSettings.manager.name || ''}\n${appSettings.manager.title || ''}\n\n--- Contenu de la facture ---\n`;
-        const emailClosing = `\n\n--- Fin de la facture ---`;
-        
-        let mailtoBody = emailGreeting + minifiedHtmlBody + emailClosing;
-        
-        const MAX_MAILTO_BODY_LENGTH = 1800; 
-        if (mailtoBody.length > MAX_MAILTO_BODY_LENGTH) {
-            mailtoBody = mailtoBody.substring(0, MAX_MAILTO_BODY_LENGTH) + "\n\n[Contenu tronqué en raison de la longueur]";
-            showToast("Le contenu de la facture est très long et a été tronqué pour l'email.", "warning");
+            throw new Error(result.message || `Erreur serveur (${response.status}) lors de l'envoi de l'email.`);
         }
 
-        const mailtoLink = `mailto:${clientEmail}?cc=${managerEmail}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(mailtoBody)}`;
-        window.location.href = mailtoLink;
-        showToast(`Ouverture de votre client email pour la facture ${invoiceNumber}.`, 'success');
+        showToast(result.message || `Facture ${invoiceNumber} envoyée avec succès à ${clientEmail}.`, 'success');
 
     } catch (error) {
-        showToast(`Erreur lors de la préparation de l'email: ${error.message}`, 'error');
-        console.error("Erreur lors de la préparation de l'email:", error);
+        showToast(`Erreur lors de l'envoi de l'email: ${error.message}`, 'error');
+        console.error("Erreur lors de l'envoi de l'email via le serveur:", error);
     }
 }
         
@@ -959,16 +920,21 @@ async function handleSeanceRowDblClick(event) {
     
     if (currentlyEditingRow === row) return; 
 
-    currentlyEditingRow = row;
+    currentlyEditingRow = row; 
     const seance = seances.find(s => s.id_seance === seanceId);
-    if (!seance) return;
-    
-    if (seance.invoice_number) {
-        makeCellEditable(row.querySelector('td[data-column="statut_seance"]'), seance, 'statut_seance');
-        togglePaymentFieldsInRow(row, seance, seance.statut_seance); 
-    } else {
-        loadSeanceForEdit(seanceId); 
+    if (!seance) {
+        currentlyEditingRow = null; 
+        return;
     }
+    
+    const statusCell = row.querySelector('td[data-column="statut_seance"]');
+    if (statusCell) {
+        makeCellEditable(statusCell, seance, 'statut_seance');
+    }
+    
+    const statutSelectElement = statusCell ? statusCell.querySelector('select') : null;
+    const currentStatusInEdit = statutSelectElement ? statutSelectElement.value : seance.statut_seance;
+    togglePaymentFieldsInRow(row, seance, currentStatusInEdit); 
 }
 
 function makeCellEditable(cell, seance, columnName) {
@@ -1024,7 +990,8 @@ function makeCellEditable(cell, seance, columnName) {
         inputElement.addEventListener('blur', async (e) => {
             const relatedTarget = e.relatedTarget;
             const currentRow = cell.closest('tr');
-            if (relatedTarget && currentRow && currentRow.contains(relatedTarget) && (relatedTarget.tagName === 'INPUT' || relatedTarget.tagName === 'SELECT')) {
+            if (relatedTarget && currentRow && currentRow.contains(relatedTarget) && 
+                (relatedTarget.tagName === 'INPUT' || relatedTarget.tagName === 'SELECT')) {
                 return;
             }
             await saveRowChanges(cell.parentElement, seance);
@@ -1099,9 +1066,9 @@ async function saveRowChanges(row, seanceRef) {
         }
         
         const newDatePaiement = datePaiementInputElement ? (datePaiementInputElement.value || null) : seanceToUpdate.date_paiement;
-        const oldDatePaiement = seanceToUpdate.date_paiement ? (seanceToUpdate.date_paiement.includes('T') ? seanceToUpdate.date_paiement.split('T')[0] : seanceToUpdate.date_paiement) : null;
+        const oldDatePaiementNormalized = seanceToUpdate.date_paiement ? (seanceToUpdate.date_paiement.includes('T') ? seanceToUpdate.date_paiement.split('T')[0] : seanceToUpdate.date_paiement) : null;
 
-        if (oldDatePaiement !== newDatePaiement) {
+        if (oldDatePaiementNormalized !== newDatePaiement) {
             seanceToUpdate.date_paiement = newDatePaiement;
             hasChanges = true;
         }
@@ -1140,7 +1107,7 @@ async function saveRowChanges(row, seanceRef) {
         showToast(`Erreur MAJ séance: ${error.message}`, 'error');
         console.error('Erreur de mise à jour de la séance :', error);
         const originalSeance = seances.find(s => s.id_seance === seanceId); 
-        revertRowToDisplayMode(row, originalSeance);
+        revertRowToDisplayMode(row, originalSeance || seanceRef); 
     } finally {
         currentlyEditingRow = null; 
     }
@@ -1376,316 +1343,149 @@ function formatPeriodForDisplay(date, periodType) {
 }
 
 function prepareChartData(allSeances, periodType) {
-    console.log("Préparation des données du graphique pour la période :", periodType);
     if (!allSeances || allSeances.length === 0) {
-        console.log("Pas de séances pour préparer les données du graphique.");
         return [];
     }
-
     const aggregatedData = {}; 
-
     allSeances.forEach(seance => {
         const montantFacture = parseFloat(seance.montant_facture || 0);
-
-        // Aggregate session counts by date_heure_seance
         if (seance.date_heure_seance) {
             const sessionDate = new Date(seance.date_heure_seance);
             if (!isNaN(sessionDate.getTime())) {
                 const sessionPeriodStart = getPeriodStartDate(sessionDate, periodType);
                 if (sessionPeriodStart) {
                     const sessionPeriodKey = sessionPeriodStart.toISOString().slice(0, 10);
-
                     if (!aggregatedData[sessionPeriodKey]) {
                         aggregatedData[sessionPeriodKey] = {
                             periodDate: sessionPeriodStart,
                             periodLabel: formatPeriodForDisplay(sessionPeriodStart, periodType),
-                            cancelledSessions: 0,
-                            paidSessions: 0,
-                            toPaySessions: 0,
-                            paidAmount: 0 // Initialize paidAmount here as well
+                            cancelledSessions: 0, paidSessions: 0, toPaySessions: 0, paidAmount: 0
                         };
                     }
-                    
-                    if (seance.statut_seance === 'ANNULEE') {
-                        aggregatedData[sessionPeriodKey].cancelledSessions += 1;
-                    } else if (seance.statut_seance === 'PAYEE') {
-                        aggregatedData[sessionPeriodKey].paidSessions += 1;
-                    } else if (seance.statut_seance === 'APAYER') {
-                        aggregatedData[sessionPeriodKey].toPaySessions += 1;
-                    }
+                    if (seance.statut_seance === 'ANNULEE') aggregatedData[sessionPeriodKey].cancelledSessions += 1;
+                    else if (seance.statut_seance === 'PAYEE') aggregatedData[sessionPeriodKey].paidSessions += 1;
+                    else if (seance.statut_seance === 'APAYER') aggregatedData[sessionPeriodKey].toPaySessions += 1;
                 }
-            } else {
-                 console.warn("Date de séance invalide (date_heure_seance):", seance.date_heure_seance, "pour la séance :", seance.id_seance);
             }
         }
-
-        // Aggregate paid amounts by date_paiement
         if (seance.statut_seance === 'PAYEE' && seance.date_paiement) {
             const paymentDate = new Date(seance.date_paiement);
              if (!isNaN(paymentDate.getTime())) {
                 const paymentPeriodStart = getPeriodStartDate(paymentDate, periodType);
                 if (paymentPeriodStart) {
                     const paymentPeriodKey = paymentPeriodStart.toISOString().slice(0, 10);
-
                     if (!aggregatedData[paymentPeriodKey]) {
-                         // If period only exists due to payment, initialize session counts to 0
                         aggregatedData[paymentPeriodKey] = {
-                            periodDate: paymentPeriodStart,
-                            periodLabel: formatPeriodForDisplay(paymentPeriodStart, periodType),
-                            cancelledSessions: 0,
-                            paidSessions: 0, 
-                            toPaySessions: 0,
-                            paidAmount: 0
+                            periodDate: paymentPeriodStart, periodLabel: formatPeriodForDisplay(paymentPeriodStart, periodType),
+                            cancelledSessions: 0, paidSessions: 0, toPaySessions: 0, paidAmount: 0
                         };
                     }
-                    if (!isNaN(montantFacture)) {
-                        aggregatedData[paymentPeriodKey].paidAmount += montantFacture;
-                    }
+                    if (!isNaN(montantFacture)) aggregatedData[paymentPeriodKey].paidAmount += montantFacture;
                 }
-            } else {
-                 console.warn("Date de paiement invalide:", seance.date_paiement, "pour la séance :", seance.id_seance);
             }
         }
     });
-    
-    const chartData = Object.values(aggregatedData).sort((a, b) => a.periodDate - b.periodDate);
-    console.log("Données du graphique préparées (pour Stacked Bar + Line Chart V2) :", chartData);
-    return chartData;
+    return Object.values(aggregatedData).sort((a, b) => a.periodDate - b.periodDate);
 }
 
 
 function renderSessionsTrendChart(chartData) {
-    console.log("Rendu du Stacked Bar + Line Chart V2 avec les données :", chartData);
     if(!sessionsTrendChartContainer) return;
     sessionsTrendChartContainer.innerHTML = ''; 
-
     if (!chartData || chartData.length === 0) {
         sessionsTrendChartContainer.innerHTML = "<p style='text-align:center; padding-top: 20px; color:#666;'>Pas de données suffisantes pour afficher le graphique.</p>";
         return;
     }
-
     const containerWidth = sessionsTrendChartContainer.clientWidth;
      if (containerWidth === 0) {
-        console.warn("La largeur du conteneur du graphique est de 0.");
         setTimeout(() => renderSessionsTrendChart(chartData), 100);
         return;
     }
-    const margin = {top: 30, right: 70, bottom: 110, left: 60}, // Increased bottom margin for legend
+    const margin = {top: 30, right: 70, bottom: 110, left: 60},
           width = Math.max(0, containerWidth - margin.left - margin.right),
           height = Math.max(0, 400 - margin.top - margin.bottom); 
-    
     if (width <= 0 || height <= 0) {
         sessionsTrendChartContainer.innerHTML = "<p style='text-align:center; padding-top: 20px; color:#666;'>Espace insuffisant pour afficher le graphique.</p>";
         return;
     }
-
     const svg = d3.select(sessionsTrendChartContainer).append("svg")
-        .attr("width", width + margin.left + margin.right)
-        .attr("height", height + margin.top + margin.bottom)
-      .append("g")
-        .attr("transform", `translate(${margin.left},${margin.top})`);
-
+        .attr("width", width + margin.left + margin.right).attr("height", height + margin.top + margin.bottom)
+      .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
     const periods = chartData.map(d => d.periodLabel);
-    const x = d3.scaleBand()
-        .domain(periods)
-        .range([0, width])
-        .padding(0.2);
-
+    const x = d3.scaleBand().domain(periods).range([0, width]).padding(0.2);
     const yCountsMax = d3.max(chartData, d => d.cancelledSessions + d.paidSessions + d.toPaySessions) || 1;
-    const yCounts = d3.scaleLinear()
-        .domain([0, yCountsMax])
-        .nice()
-        .range([height, 0]);
-
+    const yCounts = d3.scaleLinear().domain([0, yCountsMax]).nice().range([height, 0]);
     const yAmountsMax = d3.max(chartData, d => d.paidAmount) || 1;
-    const yAmounts = d3.scaleLinear()
-        .domain([0, yAmountsMax])
-        .nice()
-        .range([height, 0]);
-
+    const yAmounts = d3.scaleLinear().domain([0, yAmountsMax]).nice().range([height, 0]);
     const xAxis = d3.axisBottom(x);
-    svg.append("g")
-        .attr("class", "axis axis--x")
-        .attr("transform", `translate(0,${height})`)
-        .call(xAxis)
-        .selectAll("text")
-          .style("text-anchor", "end")
-          .attr("dx", "-.8em")
-          .attr("dy", ".15em")
-          .attr("transform", "rotate(-45)");
-
-    svg.append("g")
-        .attr("class", "axis axis--y-counts")
-        .call(d3.axisLeft(yCounts))
-      .append("text")
-        .attr("fill", "#000")
-        .attr("transform", "rotate(-90)")
-        .attr("y", -margin.left + 15) 
-        .attr("x", -height/2)
-        .attr("dy", "0.71em")
-        .attr("text-anchor", "middle")
-        .text("Nombre de Séances");
-
-    svg.append("g")
-        .attr("class", "axis axis--y-amounts")
-        .attr("transform", `translate(${width},0)`)
-        .call(d3.axisRight(yAmounts))
-      .append("text")
-        .attr("fill", "#000")
-        .attr("transform", "rotate(-90)")
-        .attr("y", margin.right - 25) 
-        .attr("x", -height/2)
-        .attr("dy", "-0.71em") 
-        .attr("text-anchor", "middle")
-        .text("Montant Payé (€)");
-
-    // Data for stacking: Cancelled, Paid, To Pay
+    svg.append("g").attr("class", "axis axis--x").attr("transform", `translate(0,${height})`).call(xAxis)
+        .selectAll("text").style("text-anchor", "end").attr("dx", "-.8em").attr("dy", ".15em").attr("transform", "rotate(-45)");
+    svg.append("g").attr("class", "axis axis--y-counts").call(d3.axisLeft(yCounts))
+      .append("text").attr("fill", "#000").attr("transform", "rotate(-90)").attr("y", -margin.left + 15) 
+        .attr("x", -height/2).attr("dy", "0.71em").attr("text-anchor", "middle").text("Nombre de Séances");
+    svg.append("g").attr("class", "axis axis--y-amounts").attr("transform", `translate(${width},0)`).call(d3.axisRight(yAmounts))
+      .append("text").attr("fill", "#000").attr("transform", "rotate(-90)").attr("y", margin.right - 25)
+        .attr("x", -height/2).attr("dy", "-0.71em").attr("text-anchor", "middle").text("Montant Payé (€)");
     const stackKeys = ['cancelledSessions', 'paidSessions', 'toPaySessions'];
     const stack = d3.stack().keys(stackKeys);
     const stackedData = stack(chartData);
-
-    const colorScale = d3.scaleOrdinal()
-        .domain(stackKeys)
-        .range(['#dc3545', '#28a745', '#ffc107']); // Red, Green, Yellow
-
-    // Tooltip
-    const tooltip = d3.select("body").append("div") // Append to body for better positioning
-        .attr("class", "chart-tooltip")
-        .style("opacity", 0)
-        .style("position", "absolute") // Ensure position is absolute
-        .style("pointer-events", "none"); // Prevent tooltip from interfering with mouse events
-
-
-    // Stacked Bars
-    const barGroups = svg.append("g")
-        .selectAll("g")
-        .data(stackedData)
-        .enter().append("g")
-          .attr("fill", d => colorScale(d.key))
-          .attr("class", d => `bar-stack-${d.key}`); // Add class for highlighting
-
-    barGroups.selectAll("rect")
-        .data(d => d)
-        .enter().append("rect")
-          .attr("x", d => x(d.data.periodLabel))
-          .attr("y", d => yCounts(d[1]))
-          .attr("height", d => Math.max(0, yCounts(d[0]) - yCounts(d[1])))
-          .attr("width", x.bandwidth())
+    const colorScale = d3.scaleOrdinal().domain(stackKeys).range(['#dc3545', '#28a745', '#ffc107']);
+    const tooltip = d3.select("body").append("div").attr("class", "chart-tooltip")
+        .style("opacity", 0).style("position", "absolute").style("pointer-events", "none");
+    const barGroups = svg.append("g").selectAll("g").data(stackedData).enter().append("g")
+          .attr("fill", d => colorScale(d.key)).attr("class", d => `bar-stack-${d.key}`);
+    barGroups.selectAll("rect").data(d => d).enter().append("rect")
+          .attr("x", d => x(d.data.periodLabel)).attr("y", d => yCounts(d[1]))
+          .attr("height", d => Math.max(0, yCounts(d[0]) - yCounts(d[1]))).attr("width", x.bandwidth())
           .on("mouseover", function(event, d) {
-              const key = d3.select(this.parentNode).datum().key; // Get the key of the stack
-              let count;
-              let label;
-              if (key === 'cancelledSessions') {
-                  count = d.data.cancelledSessions;
-                  label = 'Annulées';
-              } else if (key === 'paidSessions') {
-                  count = d.data.paidSessions;
-                  label = 'Payées';
-              } else if (key === 'toPaySessions') {
-                  count = d.data.toPaySessions;
-                  label = 'À Payer';
-              }
-              
+              const key = d3.select(this.parentNode).datum().key; 
+              let count; let label;
+              if (key === 'cancelledSessions') { count = d.data.cancelledSessions; label = 'Annulées';}
+              else if (key === 'paidSessions') { count = d.data.paidSessions; label = 'Payées';}
+              else if (key === 'toPaySessions') { count = d.data.toPaySessions; label = 'À Payer';}
               tooltip.transition().duration(200).style("opacity", .9);
               tooltip.html(`<strong>${d.data.periodLabel}</strong><br/>Séances ${label}: ${count}`)
-                  .style("left", (event.pageX + 10) + "px") // Use pageX/pageY for body-appended tooltip
-                  .style("top", (event.pageY - 28) + "px");
-
-              // Highlight group
-              svg.selectAll(".bar-stack-cancelledSessions rect, .bar-stack-paidSessions rect, .bar-stack-toPaySessions rect")
-                 .style("opacity", 0.3); // Dim all bars first
-              svg.selectAll(`.bar-stack-${key} rect`) // Highlight all bars of the same series
-                 .filter(barData => barData.data.periodLabel === d.data.periodLabel) // only the one in the current period
-                 .style("opacity", 1);
-          })
-          .on("mouseout", function() {
+                  .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 28) + "px");
+              svg.selectAll(".bar-stack-cancelledSessions rect, .bar-stack-paidSessions rect, .bar-stack-toPaySessions rect").style("opacity", 0.3);
+              svg.selectAll(`.bar-stack-${key} rect`).filter(barData => barData.data.periodLabel === d.data.periodLabel).style("opacity", 1);
+          }).on("mouseout", function() {
               tooltip.transition().duration(500).style("opacity", 0);
-              svg.selectAll(".bar-stack-cancelledSessions rect, .bar-stack-paidSessions rect, .bar-stack-toPaySessions rect")
-                 .style("opacity", 1); // Reset opacity
+              svg.selectAll(".bar-stack-cancelledSessions rect, .bar-stack-paidSessions rect, .bar-stack-toPaySessions rect").style("opacity", 1);
           });
-
-    // Line for Paid Amounts
-    const linePaidAmount = d3.line()
-        .x(d => x(d.periodLabel) + x.bandwidth() / 2) 
-        .y(d => yAmounts(d.paidAmount))
+    const linePaidAmount = d3.line().x(d => x(d.periodLabel) + x.bandwidth() / 2).y(d => yAmounts(d.paidAmount))
         .defined(d => d.paidAmount !== undefined && d.paidAmount !== null); 
-
-    svg.append("path")
-        .datum(chartData.map(d => ({...d, paidAmount: d.paidAmount || 0}))) 
-        .attr("class", "line paid-amount-line")
-        .attr("fill", "none")
-        .attr("stroke", "#007bff") // Darker blue for amount line
-        .attr("stroke-width", 2.5)
-        .attr("d", linePaidAmount);
-
-    // Circles for line chart points (for tooltip interaction)
-    svg.selectAll(".dot-paid-amount")
-        .data(chartData.filter(d => d.paidAmount !== undefined && d.paidAmount !== null && d.paidAmount > 0))
-        .enter().append("circle")
-        .attr("class", "dot dot-paid-amount")
-        .attr("cx", d => x(d.periodLabel) + x.bandwidth() / 2)
-        .attr("cy", d => yAmounts(d.paidAmount))
-        .attr("r", 5) // Slightly larger dots
-        .attr("fill", "#007bff")
-        .attr("stroke", "white")
-        .attr("stroke-width", 1.5)
+    svg.append("path").datum(chartData.map(d => ({...d, paidAmount: d.paidAmount || 0}))) 
+        .attr("class", "line paid-amount-line").attr("fill", "none").attr("stroke", "#007bff")
+        .attr("stroke-width", 2.5).attr("d", linePaidAmount);
+    svg.selectAll(".dot-paid-amount").data(chartData.filter(d => d.paidAmount !== undefined && d.paidAmount !== null && d.paidAmount > 0))
+        .enter().append("circle").attr("class", "dot dot-paid-amount")
+        .attr("cx", d => x(d.periodLabel) + x.bandwidth() / 2).attr("cy", d => yAmounts(d.paidAmount))
+        .attr("r", 5).attr("fill", "#007bff").attr("stroke", "white").attr("stroke-width", 1.5)
         .on("mouseover", (event, d) => {
             tooltip.transition().duration(200).style("opacity", .9);
             tooltip.html(`<strong>${d.periodLabel}</strong><br/>Montant Payé: ${d.paidAmount.toFixed(2)}€`)
-                .style("left", (event.pageX + 10) + "px")
-                .style("top", (event.pageY - 28) + "px");
-        })
-        .on("mouseout", () => {
-            tooltip.transition().duration(500).style("opacity", 0);
-        });
-    
-    // Legend
+                .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 28) + "px");
+        }).on("mouseout", () => { tooltip.transition().duration(500).style("opacity", 0); });
     const legendData = [
-        { color: '#ffc107', text: "Séances à Payer" }, // Yellow
-        { color: '#28a745', text: "Séances Payées" },   // Green
-        { color: '#dc3545', text: "Séances Annulées" }, // Red
-        { color: "#007bff", text: "Montant Payé (€) (Ligne)" } // Darker Blue
+        { color: '#ffc107', text: "Séances à Payer" }, { color: '#28a745', text: "Séances Payées" },
+        { color: '#dc3545', text: "Séances Annulées" }, { color: "#007bff", text: "Montant Payé (€) (Ligne)" }
     ];
-
-    const legendContainer = svg.append("g")
-        .attr("class", "legend-container")
-        .attr("transform", `translate(0, ${height + margin.bottom - 45})`); 
-
-    const legend = legendContainer.selectAll(".legend-item")
-        .data(legendData)
-        .enter().append("g")
-        .attr("class", "legend-item")
-        .attr("transform", (d, i) => `translate(${i * 140}, 0)`); // Adjust spacing as needed
-
-    legend.append("rect")
-        .attr("x", 0)
-        .attr("y", 0)
-        .attr("width", 18)
-        .attr("height", 18)
-        .style("fill", d => d.color);
-
-    legend.append("text")
-        .attr("x", 24)
-        .attr("y", 9)
-        .attr("dy", ".35em")
-        .style("text-anchor", "start")
-        .style("font-size", "10px")
-        .text(d => d.text);
-    
-    console.log("Stacked Bar + Line Chart (V3) rendu avec succès.");
+    const legendContainer = svg.append("g").attr("class", "legend-container").attr("transform", `translate(0, ${height + margin.bottom - 45})`); 
+    const legend = legendContainer.selectAll(".legend-item").data(legendData).enter().append("g")
+        .attr("class", "legend-item").attr("transform", (d, i) => `translate(${i * 140}, 0)`);
+    legend.append("rect").attr("x", 0).attr("y", 0).attr("width", 18).attr("height", 18).style("fill", d => d.color);
+    legend.append("text").attr("x", 24).attr("y", 9).attr("dy", ".35em")
+        .style("text-anchor", "start").style("font-size", "10px").text(d => d.text);
 }
 
 
 function displaySessionsTrendChart() {
-    console.log("Tentative d'affichage du graphique (Stacked Bar + Line V2)..."); 
     if (!seances) {
-        console.log("Variable 'seances' non définie ou vide lors de l'appel à displaySessionsTrendChart."); 
         if (sessionsTrendChartContainer) sessionsTrendChartContainer.innerHTML = "<p style='text-align:center; color:#666;'>Données des séances non chargées.</p>";
         return;
     }
     const viewDashboard = document.getElementById('viewDashboard');
     if (!viewDashboard || !viewDashboard.classList.contains('active')) {
-        console.log("Le tableau de bord n'est pas actif, le graphique ne sera pas affiché."); 
         return;
     }
     const periodType = chartPeriodSelector ? chartPeriodSelector.value : 'month'; 
@@ -1700,7 +1500,6 @@ if (chartPeriodSelector) {
 // --- Gestion de la Configuration ---
 function populateConfigForm() {
     if (!appSettings || !configForm) return; 
-
     if (appSettings.manager) {
         if(configManagerName) configManagerName.value = appSettings.manager.name || '';
         if(configManagerTitle) configManagerTitle.value = appSettings.manager.title || ''; 
@@ -1710,9 +1509,7 @@ function populateConfigForm() {
         if(configManagerPhone) configManagerPhone.value = appSettings.manager.phone || '';
         if(configManagerEmail) configManagerEmail.value = appSettings.manager.email || '';
     }
-
     if(configTva) configTva.value = appSettings.tva !== undefined ? appSettings.tva : '';
-
     if (appSettings.legal) {
         if(configSiret) configSiret.value = appSettings.legal.siret || '';
         if(configApe) configApe.value = appSettings.legal.ape || '';
@@ -1730,27 +1527,17 @@ if (configForm) {
         event.preventDefault();
         const updatedSettings = {
             manager: {
-                name: configManagerName.value,
-                title: configManagerTitle.value, 
-                description: configManagerDescription.value, 
-                address: configManagerAddress.value,
-                city: configManagerCity.value,
-                phone: configManagerPhone.value,
-                email: configManagerEmail.value
+                name: configManagerName.value, title: configManagerTitle.value, description: configManagerDescription.value, 
+                address: configManagerAddress.value, city: configManagerCity.value,
+                phone: configManagerPhone.value, email: configManagerEmail.value
             },
             tva: parseFloat(configTva.value) || 0,
             legal: {
-                siret: configSiret.value,
-                ape: configApe.value,
-                adeli: configAdeli.value,
-                iban: configIban.value,
-                bic: configBic.value,
-                tvaMention: configTvaMention.value,
-                paymentTerms: configPaymentTerms.value,
-                insurance: configInsurance.value
+                siret: configSiret.value, ape: configApe.value, adeli: configAdeli.value,
+                iban: configIban.value, bic: configBic.value, tvaMention: configTvaMention.value,
+                paymentTerms: configPaymentTerms.value, insurance: configInsurance.value
             }
         };
-
         try {
             const response = await fetch(`${API_BASE_URL}/settings`, {
                 method: 'POST',
