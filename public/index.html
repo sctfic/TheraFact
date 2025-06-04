@@ -6,8 +6,6 @@
     <title>Application de Facturation Thérapie</title>
     <style>@import url("main.css");</style>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <!-- Ajout de la librairie Google API (pour la connexion Google Calendar côté client si besoin futur, mais la logique principale sera serveur) -->
-    <!-- <script async defer src="https://apis.google.com/js/api.js"></script> -->
 </head>
 <body>
     <header><h1>Application de Facturation Thérapie</h1></header>
@@ -54,7 +52,7 @@
                             <option value="APAYER">À Payer</option>
                             <option value="PAYEE">Payée</option>
                             <option value="ANNULEE">Annulée</option>
-                            <option value="PLANIFIEE">Planifiée</option> <!-- Optionnel, si vous voulez un statut avant "À Payer" -->
+                            <option value="PLANIFIEE">Planifiée</option>
                         </select>
                     </div>
                     <div class="form-group hidden" id="seanceModePaiementGroup">
@@ -171,7 +169,6 @@
                 <form id="tarifForm" class="form-grid">
                     <input type="hidden" id="tarifId">
                     <div class="form-group form-row"><label for="tarifLibelle">Libellé* :</label><input type="text" id="tarifLibelle" required></div>
-                    <!-- CHAMP DUREE AJOUTÉ -->
                     <div class="form-group"><label for="tarifDuree">Durée (minutes) :</label><input type="number" id="tarifDuree" min="0" placeholder="ex: 60"></div>
                     <div class="form-group"><label for="tarifMontant">Montant (€)* :</label><input type="number" id="tarifMontant" step="0.01" min="0" required></div>
                     <div class="form-group form-row" style="text-align: right;">
@@ -236,11 +233,12 @@
                     <div class="form-group"><label for="configManagerTitle">Titre/Profession :</label><input type="text" id="configManagerTitle"></div>
                     <div class="form-group form-row"><label for="configManagerDescription">Description (activité) :</label><textarea id="configManagerDescription" rows="2"></textarea></div>
                     <div class="form-group"><label for="configManagerPhone">Téléphone :</label><input type="tel" id="configManagerPhone"></div>
-                    <div class="form-group"><label for="configManagerCity">Ville :</label><input type="text" id="configManagerCity"></div>
                     <div class="form-group form-row"><label for="configManagerAddress">Adresse :</label><input type="text" id="configManagerAddress"></div>
-
+                    <div class="form-group"><label for="configManagerCity">Ville :</label><input type="text" id="configManagerCity"></div>
+                    <!-- Le bloc pour Email et Mot de passe d'application Gmail est remplacé ci-dessous -->
                 </div>
 
+                <!-- NOUVEAU BLOC HTML INTÉGRÉ ICI -->
                 <h3>Paramètres Mailing & Calendar</h3>
                 <div class="form-grid config-grid">
                     <!-- Email (GMAIL_USER) -->
@@ -256,6 +254,8 @@
                         <div id="gmailTestResult" style="margin-top: 5px; font-weight: bold;"></div>
                     </div>
                 </div>
+                <!-- FIN DU NOUVEAU BLOC HTML -->
+
                 <h3>Paramètres Financiers</h3>
                 <div class="form-grid config-grid">
                     <div class="form-group"><label for="configTva">Taux de TVA (%) :</label><input type="number" id="configTva" step="0.1" min="0"></div>

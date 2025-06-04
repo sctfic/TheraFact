@@ -2,33 +2,28 @@
 const express = require('express');
 const fs = require('fs').promises;
 const fssync = require('fs'); 
-const path =require('path');
+const path = require('path');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 let puppeteer; 
 
-// Tentative d'import de puppeteer
 try {
   puppeteer = require('puppeteer');
 } catch (error) {
   console.warn("ATTENTION : Le module 'puppeteer' n'est pas installé. La génération de PDF ne fonctionnera pas.");
-  console.warn("Pour l'installer, exécutez : npm install puppeteer");
   puppeteer = null;
 }
 
-// Import pour Google Calendar
 const { google } = require('googleapis');
-const calendarHelper = require('./google-calendar-helper'); // Fichier auxiliaire pour Google Calendar
+const calendarHelper = require('./google-calendar-helper'); 
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000; // Utiliser le port de l'environnement ou 3000 par défaut
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Répertoire des données
 const dataDir = path.join(__dirname, 'data');
 const clientsFilePath = path.join(dataDir, 'clients.tsv');
 const tarifsFilePath = path.join(dataDir, 'tarifs.tsv');
@@ -36,19 +31,110 @@ const seancesFilePath = path.join(dataDir, 'seances.tsv');
 const settingsFilePath = path.join(dataDir, 'settings.json');
 const factsDir = path.join(__dirname, 'public', 'Facts');
 const devisDir = path.join(__dirname, 'public', 'Devis');
+const OAUTH_CREDENTIALS_PATH = path.join(__dirname, 'OAuth2.0.json'); // Chemin vers vos identifiants OAuth
 
-fs.mkdir(dataDir, { recursive: true }).catch(err => console.error("Erreur création dataDir:", err.message));
-fs.mkdir(factsDir, { recursive: true }).catch(err => console.error("Erreur création factsDir:", err.message));
-fs.mkdir(devisDir, { recursive: true }).catch(err => console.error("Erreur création devisDir:", err.message));
+fs.mkdir(dataDir, { recursive: true }).catch(console.error);
+fs.mkdir(factsDir, { recursive: true }).catch(console.error);
+fs.mkdir(devisDir, { recursive: true }).catch(console.error);
 
-// --- Fonctions utilitaires pour la lecture/écriture TSV ---
+// --- Variables globales pour OAuth et la configuration ---
+let oauth2Client;
+let googleOAuthConfig = {}; // Pour stocker client_id, client_secret, redirect_uri
+let activeGoogleAuthTokens = { // Stockera les jetons actifs en mémoire pour la session serveur
+    accessToken: null,
+    refreshToken: null,
+    expiryDate: null,
+    userEmail: null, // Email de l'utilisateur connecté via OAuth
+    scopes: []
+};
+
+const defaultSettings = {
+  manager: {
+    name: "", title: "", description: "", address: "", city: "", phone: "", email: "", // L'email ici est informatif, l'email OAuth sera utilisé pour les services Google
+    // Suppression des anciens champs liés au mot de passe d'application
+  },
+  googleOAuth: { // Nouvelle section pour les jetons OAuth persistants
+    userEmail: null,
+    refreshToken: null, // Le refresh token est crucial et doit être stocké de manière persistante
+    scopes: []
+  },
+  tva: 0,
+  legal: { 
+    siret: "", ape: "", adeli: "", iban: "", bic: "", 
+    tvaMention: "TVA non applicable selon l'article 293B du Code Général des Impôts", 
+    paymentTerms: "Paiement à réception de facture", 
+    insurance: "AXA Assurances - Police n° 123456789 - Garantie territoriale : France/Europe"
+  },
+  googleCalendar: { 
+    calendarId: "primary",
+  }
+};
+
+// --- Fonctions OAuth 2.0 ---
+async function loadAndInitializeOAuthClient() {
+    try {
+        const credentialsContent = await fs.readFile(OAUTH_CREDENTIALS_PATH, 'utf8');
+        const credentials = JSON.parse(credentialsContent);
+        if (!credentials.web || !credentials.web.client_id || !credentials.web.client_secret || !credentials.web.redirect_uris) {
+            throw new Error("Fichier OAuth2.0.json mal formaté ou incomplet.");
+        }
+        googleOAuthConfig = {
+            clientId: credentials.web.client_id,
+            clientSecret: credentials.web.client_secret,
+            // Utilisez la première URI de redirection ou rendez-la configurable si nécessaire
+            // Assurez-vous que celle-ci correspond EXACTEMENT à celle configurée dans Google Cloud Console
+            // et à l'endpoint /api/auth/google/callback
+            redirectUri: credentials.web.redirect_uris[0] // Exemple: https://fact.lpz.ovh/api/auth/google/callback
+        };
+
+        oauth2Client = new google.auth.OAuth2(
+            googleOAuthConfig.clientId,
+            googleOAuthConfig.clientSecret,
+            googleOAuthConfig.redirectUri
+        );
+        console.log("Client OAuth2 initialisé avec succès.");
+
+        // Charger les jetons stockés depuis settings.json s'ils existent
+        const settings = await readSettingsJson(); // Assurez-vous que readSettingsJson est appelé après l'init d'OAuth
+        if (settings.googleOAuth && settings.googleOAuth.refreshToken) {
+            oauth2Client.setCredentials({
+                refresh_token: settings.googleOAuth.refreshToken
+            });
+            activeGoogleAuthTokens.refreshToken = settings.googleOAuth.refreshToken;
+            activeGoogleAuthTokens.userEmail = settings.googleOAuth.userEmail;
+            activeGoogleAuthTokens.scopes = settings.googleOAuth.scopes || [];
+            console.log(`Jeton de rafraîchissement chargé pour ${activeGoogleAuthTokens.userEmail}.`);
+            // Tenter de rafraîchir le jeton d'accès au démarrage pour vérifier la validité
+            try {
+                const { token: newAccessToken, expiry_date: newExpiryDate } = await oauth2Client.getAccessToken();
+                activeGoogleAuthTokens.accessToken = newAccessToken;
+                activeGoogleAuthTokens.expiryDate = newExpiryDate;
+                oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: newAccessToken });
+                console.log("Jeton d'accès rafraîchi avec succès au démarrage.");
+            } catch (refreshError) {
+                console.warn("Impossible de rafraîchir le jeton d'accès au démarrage:", refreshError.message);
+                // Le refresh token pourrait être invalide, l'utilisateur devra se reconnecter.
+                // Effacer les tokens invalides des settings ?
+                // await clearStoredTokens(); // Fonction à créer si besoin
+            }
+        }
+         // Initialiser le helper calendrier avec le client OAuth2 (si tokens dispo) ou sans authentification pour l'instant
+        calendarHelper.setAuth(oauth2Client);
+
+
+    } catch (error) {
+        console.error("Erreur critique lors du chargement ou de l'initialisation du client OAuth2:", error.message);
+        console.error("  Assurez-vous que le fichier OAuth2.0.json est présent à la racine du serveur et correctement formaté.");
+        oauth2Client = null; // Empêcher l'utilisation si l'initialisation échoue
+    }
+}
+
+// --- Fonctions utilitaires pour la lecture/écriture TSV (inchangées) ---
 function parseTSV(tsvString, headers) {
     const lines = tsvString.trim().split(/\r?\n/);
     if (lines.length === 0 || (lines.length === 1 && lines[0].trim() === '')) return [];
-
     const parsedHeaders = lines[0].split('\t').map(h => h.trim());
     const effectiveHeaders = headers && headers.length > 0 ? headers : parsedHeaders;
-    
     const data = [];
     for (let i = 1; i < lines.length; i++) {
         if (lines[i].trim() === '') continue;
@@ -56,16 +142,14 @@ function parseTSV(tsvString, headers) {
         const entry = {};
         effectiveHeaders.forEach((header, index) => {
             let value = values[index] !== undefined ? values[index].trim() : null;
-            if (value === '' || value === 'null' || value === undefined || value === 'undefined') { // Ajout de 'undefined' string
+            if (value === '' || value === 'null' || value === undefined || value === 'undefined') {
                 value = null;
             }
-            // Conversion numérique pour les champs spécifiques
             if (header === 'montant' || header === 'montant_facture' || header === 'tva') {
                 entry[header] = value !== null ? parseFloat(value) : 0;
-            } else if (header === 'duree') { // Conversion pour duree
+            } else if (header === 'duree') {
                 entry[header] = value !== null ? parseInt(value, 10) : null;
-            }
-             else {
+            } else {
                 entry[header] = value;
             }
         });
@@ -81,56 +165,42 @@ function formatTSV(dataArray, headers) {
     const rows = dataArray.map(item => {
         return headers.map(header => {
             let value = item[header];
-            if (value === null || value === undefined) {
-                return ''; // Retourner une chaîne vide pour null ou undefined
-            }
-            // Formatage spécifique pour les nombres
+            if (value === null || value === undefined) return '';
             if (typeof value === 'number' && (header === 'montant' || header === 'montant_facture' || header === 'tva')) {
                 return value.toFixed(2);
             }
-            if (typeof value === 'number' && header === 'duree') {
-                 return String(value);
-            }
-            return String(value).replace(/\t|\n|\r/g, ' '); // Échapper les caractères spéciaux
+            if (typeof value === 'number' && header === 'duree') return String(value);
+            return String(value).replace(/\t|\n|\r/g, ' ');
         }).join('\t');
     });
     return [headerString, ...rows].join('\r\n') + '\r\n';
 }
 
-// Lecture et écriture spécifiques pour les Clients (TSV)
 const clientsHeaders = ['id', 'nom', 'prenom', 'telephone', 'email', 'adresse', 'ville', 'notes', 'defaultTarifId', 'statut', 'dateCreation'];
-async function readClientsTsv() {
+async function readClientsTsv() { 
     try {
         await fs.access(dataDir); 
         const data = await fs.readFile(clientsFilePath, 'utf8');
         return parseTSV(data, clientsHeaders);
     } catch (error) {
         if (error.code === 'ENOENT') { 
-            console.log(`Fichier ${clientsFilePath} non trouvé. Tentative de création...`);
-            try {
-                await fs.writeFile(clientsFilePath, clientsHeaders.join('\t') + '\r\n', 'utf8');
-                console.log(`Fichier ${clientsFilePath} créé avec succès.`);
-                return []; 
-            } catch (writeError) {
-                console.error(`Échec de la création du fichier ${clientsFilePath}:`, writeError.message);
-                return []; 
-            }
+            await fs.writeFile(clientsFilePath, clientsHeaders.join('\t') + '\r\n', 'utf8');
+            return []; 
         }
-        console.error(`Erreur lors de la lecture de ${clientsFilePath}:`, error.message);
+        console.error(`Erreur lecture ${clientsFilePath}:`, error.message);
         return []; 
     }
 }
-async function writeClientsTsv(clients) {
+async function writeClientsTsv(clients) { 
     try {
         await fs.mkdir(dataDir, { recursive: true }); 
         await fs.writeFile(clientsFilePath, formatTSV(clients, clientsHeaders), 'utf8');
     } catch (error) {
-        console.error(`Erreur lors de l'écriture dans ${clientsFilePath}:`, error.message);
+        console.error(`Erreur écriture ${clientsFilePath}:`, error.message);
     }
 }
 
-// Lecture et écriture spécifiques pour les Tarifs (TSV)
-const tarifsHeaders = ['id', 'libelle', 'montant', 'duree']; // Ajout de 'duree'
+const tarifsHeaders = ['id', 'libelle', 'montant', 'duree'];
 async function readTarifsTsv() {
     try {
         await fs.access(dataDir);
@@ -138,116 +208,61 @@ async function readTarifsTsv() {
         return parseTSV(data, tarifsHeaders);
     } catch (error) {
         if (error.code === 'ENOENT') {
-            console.log(`Fichier ${tarifsFilePath} non trouvé. Tentative de création...`);
-            try {
-                await fs.writeFile(tarifsFilePath, tarifsHeaders.join('\t') + '\r\n', 'utf8');
-                console.log(`Fichier ${tarifsFilePath} créé avec succès.`);
-                return [];
-            } catch (writeError) {
-                console.error(`Échec de la création du fichier ${tarifsFilePath}:`, writeError.message);
-                return [];
-            }
+            await fs.writeFile(tarifsFilePath, tarifsHeaders.join('\t') + '\r\n', 'utf8');
+            return [];
         }
-        console.error(`Erreur lors de la lecture de ${tarifsFilePath}:`, error.message);
+        console.error(`Erreur lecture ${tarifsFilePath}:`, error.message);
         return [];
     }
-}
+ }
 async function writeTarifsTsv(tarifs) {
-     try {
+    try {
         await fs.mkdir(dataDir, { recursive: true });
         await fs.writeFile(tarifsFilePath, formatTSV(tarifs, tarifsHeaders), 'utf8');
     } catch (error) {
-        console.error(`Erreur lors de l'écriture dans ${tarifsFilePath}:`, error.message);
+        console.error(`Erreur écriture ${tarifsFilePath}:`, error.message);
     }
-}
+ }
 
-// Lecture et écriture spécifiques pour les Séances (TSV)
-// Ajout de 'googleCalendarEventId' et 'previous_statut_seance' (ce dernier est transitoire, pas besoin de le stocker dans le TSV à long terme mais utile pour la logique de MAJ)
 const seancesHeaders = ['id_seance', 'id_client', 'date_heure_seance', 'id_tarif', 'montant_facture', 'statut_seance', 'mode_paiement', 'date_paiement', 'invoice_number', 'devis_number', 'googleCalendarEventId'];
-async function readSeancesTsv() {
+async function readSeancesTsv() { 
     try {
         await fs.access(dataDir);
         const data = await fs.readFile(seancesFilePath, 'utf8');
         return parseTSV(data, seancesHeaders);
     } catch (error) {
         if (error.code === 'ENOENT') {
-            console.log(`Fichier ${seancesFilePath} non trouvé. Tentative de création...`);
-            try {
-                await fs.writeFile(seancesFilePath, seancesHeaders.join('\t') + '\r\n', 'utf8');
-                console.log(`Fichier ${seancesFilePath} créé avec succès.`);
-                return [];
-            } catch (writeError) {
-                console.error(`Échec de la création du fichier ${seancesFilePath}:`, writeError.message);
-                return [];
-            }
+            await fs.writeFile(seancesFilePath, seancesHeaders.join('\t') + '\r\n', 'utf8');
+            return [];
         }
-        console.error(`Erreur lors de la lecture de ${seancesFilePath}:`, error.message);
+        console.error(`Erreur lecture ${seancesFilePath}:`, error.message);
         return [];
     }
 }
-async function writeSeancesTsv(seances) {
+async function writeSeancesTsv(seances) { 
     try {
         await fs.mkdir(dataDir, { recursive: true });
         await fs.writeFile(seancesFilePath, formatTSV(seances, seancesHeaders), 'utf8');
     } catch (error) {
-        console.error(`Erreur lors de l'écriture dans ${seancesFilePath}:`, error.message);
+        console.error(`Erreur écriture ${seancesFilePath}:`, error.message);
     }
 }
 
-// --- Fonctions pour la configuration (settings.json) ---
-// Variable globale pour stocker temporairement le mot de passe d'application après un test réussi.
-// NE PAS STOCKER EN CLAIR DANS settings.json. Utiliser des variables d'environnement pour la production.
-let temporaryGmailAppPassword = null; 
-let gmailUserForTransport = null;
-
-const defaultSettings = {
-  manager: {
-    name: "",
-    title: "",
-    description: "",
-    address: "",
-    city: "",
-    phone: "",
-    email: "", // Sera GMAIL_USER
-    // GMAIL_APP_PASSWORD n'est pas stocké ici, mais son statut de test oui.
-    gmailAppPasswordStatus: "not_set" // 'not_set', 'success', 'failed'
-  },
-  tva: 0,
-  legal: {
-    siret: "",
-    ape: "",
-    adeli: "",
-    iban: "",
-    bic: "",
-    tvaMention: "TVA non applicable selon l'article 293B du Code Général des Impôts",
-    paymentTerms: "Paiement à réception de facture",
-    insurance: "AXA Assurances - Police n° 123456789 - Garantie territoriale : France/Europe"
-  },
-  googleCalendar: {
-    calendarId: "primary", // ID du calendrier à utiliser (par défaut 'primary')
-    // Les credentials pour le service account ou OAuth2 doivent être gérés séparément (ex: fichier JSON pointé par une variable d'env)
-    // serviceAccountKeyPath: process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH || null 
-  }
-};
 
 async function readSettingsJson() {
     try {
         await fs.access(dataDir);
         const data = await fs.readFile(settingsFilePath, 'utf8');
         const loadedSettings = JSON.parse(data);
-        // Assurer que la structure par défaut est présente si des champs manquent
+        // Fusionner avec les valeurs par défaut pour s'assurer que toutes les clés existent
         const mergedSettings = {
             ...defaultSettings,
             ...loadedSettings,
             manager: { ...defaultSettings.manager, ...(loadedSettings.manager || {}) },
+            googleOAuth: { ...defaultSettings.googleOAuth, ...(loadedSettings.googleOAuth || {}) },
             legal: { ...defaultSettings.legal, ...(loadedSettings.legal || {}) },
             googleCalendar: { ...defaultSettings.googleCalendar, ...(loadedSettings.googleCalendar || {}) }
         };
-        // Initialiser le transporteur Nodemailer si les identifiants sont valides via les variables globales
-        if (mergedSettings.manager.email && temporaryGmailAppPassword && mergedSettings.manager.gmailAppPasswordStatus === 'success') {
-            gmailUserForTransport = mergedSettings.manager.email;
-            // Le transporteur sera créé à la volée lors de l'envoi d'email
-        }
         return mergedSettings;
     } catch (error) {
         if (error.code === 'ENOENT') {
@@ -255,34 +270,34 @@ async function readSettingsJson() {
             try {
                 await fs.writeFile(settingsFilePath, JSON.stringify(defaultSettings, null, 2), 'utf8');
                 console.log(`Fichier ${settingsFilePath} créé avec succès.`);
-                return defaultSettings;
+                return { ...defaultSettings }; // Retourner une copie pour éviter la modification de l'objet par défaut
             } catch (writeError) {
-                console.error(`Échec de la création du fichier ${settingsFilePath}:`, writeError.message);
-                return defaultSettings; 
+                 console.error(`Échec de la création du fichier ${settingsFilePath}:`, writeError.message);
+                 return { ...defaultSettings };
             }
         }
-        console.error(`Erreur lors de la lecture ou du parsing de ${settingsFilePath}:`, error.message);
-        return defaultSettings; 
+        console.error(`Erreur lecture/parsing ${settingsFilePath}:`, error.message);
+        return { ...defaultSettings }; // Fallback
     }
 }
 
 async function writeSettingsJson(settingsToSave) {
     try {
         await fs.mkdir(dataDir, { recursive: true });
-        // Ne jamais écrire GMAIL_APP_PASSWORD dans le fichier settings.json
-        const { gmailAppPassword, ...managerWithoutPassword } = settingsToSave.manager || {};
-        const settingsForFile = {
-            ...settingsToSave,
-            manager: managerWithoutPassword
-        };
-        await fs.writeFile(settingsFilePath, JSON.stringify(settingsForFile, null, 2), 'utf8');
+        // S'assurer que les champs sensibles non persistants ne sont pas écrits
+        const cleanSettings = JSON.parse(JSON.stringify(settingsToSave)); // Deep copy
+        if (cleanSettings.manager) {
+            delete cleanSettings.manager.gmailAppPassword; // Au cas où il traînerait
+            delete cleanSettings.manager.encodedGmailAppPassword; // Supprimer l'ancien champ
+        }
+        // Les jetons OAuth (accessToken, refreshToken) sont dans googleOAuth et sont gérés là
+        await fs.writeFile(settingsFilePath, JSON.stringify(cleanSettings, null, 2), 'utf8');
     } catch (error) {
-        console.error(`Erreur lors de l'écriture dans ${settingsFilePath}:`, error.message);
+        console.error(`Erreur écriture ${settingsFilePath}:`, error.message);
     }
 }
 
-// Fonction pour générer un ID client lisible
-async function generateClientId(nom, prenom, existingClients) {
+async function generateClientId(nom, prenom, existingClients) { 
     const cleanNom = nom.trim().toUpperCase().replace(/[^A-Z0-9_]/gi, '').substring(0, 10);
     const cleanPrenom = prenom.trim().toUpperCase().replace(/[^A-Z0-9_]/gi, '').substring(0, 5);
     let baseId = `${cleanNom}_${cleanPrenom}`;
@@ -294,9 +309,7 @@ async function generateClientId(nom, prenom, existingClients) {
     }
     return newId;
 }
-
-// Fonction pour générer un ID tarif lisible
-async function generateTarifId(libelle, montant, existingTarifs) {
+async function generateTarifId(libelle, montant, existingTarifs) { 
     const cleanLibelle = libelle.trim().toUpperCase().replace(/[^A-Z0-9_]/gi, '').substring(0,15);
     let baseId = `TARIF_${cleanLibelle}`;
     let suffix = 1;
@@ -307,9 +320,7 @@ async function generateTarifId(libelle, montant, existingTarifs) {
     }
     return newId;
 }
-
-// Fonction pour formater la date en DD/MM/YYYY
-function formatDateDDMMYYYY(dateString) {
+function formatDateDDMMYYYY(dateString) { 
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
@@ -318,11 +329,8 @@ function formatDateDDMMYYYY(dateString) {
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();
         return `${day}/${month}/${year}`;
-    } catch (e) {
-        return '';
-    }
+    } catch (e) { return ''; }
 }
-
 function calculateValidityOrDueDate(baseDateStr, days = 30) {
     if (!baseDateStr) return '';
     try {
@@ -330,11 +338,8 @@ function calculateValidityOrDueDate(baseDateStr, days = 30) {
         if (isNaN(date.getTime())) return '';
         date.setDate(date.getDate() + days);
         return formatDateDDMMYYYY(date);
-    } catch (e) {
-        return '';
-    }
-}
-
+    } catch (e) { return ''; }
+ }
 async function getNextInvoiceNumber() {
     const currentYear = new Date().getFullYear();
     const prefix = `FAC-${currentYear}-`;
@@ -344,17 +349,12 @@ async function getNextInvoiceNumber() {
         allSeances.forEach(seance => {
             if (seance.invoice_number && seance.invoice_number.startsWith(prefix)) {
                 const numPart = parseInt(seance.invoice_number.substring(prefix.length), 10);
-                if (!isNaN(numPart) && numPart > maxCounter) {
-                    maxCounter = numPart;
-                }
+                if (!isNaN(numPart) && numPart > maxCounter) maxCounter = numPart;
             }
         });
-    } catch (err) {
-        console.warn("Attention: Impossible de lire les numéros de facture existants:", err.message);
-    }
+    } catch (err) { console.warn("Avertissement: Impossible de lire les numéros de facture existants:", err.message); }
     return `${prefix}${(maxCounter + 1).toString().padStart(4, '0')}`;
-}
-
+ }
 async function getNextDevisNumber() {
     const currentYear = new Date().getFullYear();
     const prefix = `DEV-${currentYear}-`;
@@ -364,32 +364,132 @@ async function getNextDevisNumber() {
         files.forEach(file => {
             if (file.startsWith(prefix) && file.endsWith('.json')) {
                 const numPart = parseInt(file.substring(prefix.length, file.length - 5), 10);
-                if (!isNaN(numPart) && numPart > maxCounter) {
-                    maxCounter = numPart;
-                }
+                if (!isNaN(numPart) && numPart > maxCounter) maxCounter = numPart;
             }
         });
-    } catch (err) {
-        if (err.code !== 'ENOENT') {
-            console.warn("Attention: Impossible de lire les numéros de devis existants:", err.message);
-        }
-    }
+    } catch (err) { if (err.code !== 'ENOENT') console.warn("Avertissement: Impossible de lire les numéros de devis existants:", err.message); }
     return `${prefix}${(maxCounter + 1).toString().padStart(4, '0')}`;
-}
+ }
 
+// --- Endpoints OAuth 2.0 ---
+app.get('/api/auth/google', (req, res) => {
+    if (!oauth2Client) {
+        return res.status(500).send("Erreur: Configuration OAuth2 non initialisée.");
+    }
+    const scopes = [
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/calendar.events',
+        'https://www.googleapis.com/auth/userinfo.email', // Pour obtenir l'email de l'utilisateur
+        'https://www.googleapis.com/auth/userinfo.profile' // Pour obtenir le nom (optionnel)
+    ];
+    const authorizeUrl = oauth2Client.generateAuthUrl({
+        access_type: 'offline', // Crucial pour obtenir un refresh_token
+        scope: scopes,
+        prompt: 'consent' // Force l'affichage de l'écran de consentement pour s'assurer d'obtenir un refresh_token
+    });
+    res.redirect(authorizeUrl);
+});
 
-// --- Points d'API pour les Clients ---
-app.get('/api/clients', async (req, res) => {
+app.get('/api/auth/google/callback', async (req, res) => {
+    if (!oauth2Client) {
+        return res.status(500).send("Erreur: Configuration OAuth2 non initialisée.");
+    }
+    const { code } = req.query;
+    if (!code) {
+        return res.status(400).send("Erreur: Code d'autorisation manquant.");
+    }
     try {
-        const clients = await readClientsTsv();
-        res.json(clients);
+        const { tokens } = await oauth2Client.getToken(code);
+        oauth2Client.setCredentials(tokens);
+
+        // Récupérer l'email de l'utilisateur
+        const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+        const userInfo = await oauth2.userinfo.get();
+        const userEmail = userInfo.data.email;
+
+        // Mettre à jour les jetons actifs en mémoire
+        activeGoogleAuthTokens.accessToken = tokens.access_token;
+        activeGoogleAuthTokens.refreshToken = tokens.refresh_token || activeGoogleAuthTokens.refreshToken; // Google ne renvoie le refresh_token que la première fois
+        activeGoogleAuthTokens.expiryDate = tokens.expiry_date;
+        activeGoogleAuthTokens.userEmail = userEmail;
+        activeGoogleAuthTokens.scopes = tokens.scope ? tokens.scope.split(' ') : [];
+
+
+        // Sauvegarder le refresh_token et l'email dans settings.json
+        let settings = await readSettingsJson();
+        settings.googleOAuth = {
+            userEmail: userEmail,
+            refreshToken: activeGoogleAuthTokens.refreshToken, // S'assurer de sauvegarder le nouveau refresh_token s'il est fourni
+            scopes: activeGoogleAuthTokens.scopes
+        };
+        // L'email du manager principal peut aussi être mis à jour ici si souhaité
+        if (settings.manager && !settings.manager.email) { // Mettre à jour l'email du manager s'il n'est pas déjà défini
+            settings.manager.email = userEmail;
+        }
+        await writeSettingsJson(settings);
+        
+        console.log(`Tokens obtenus et sauvegardés pour ${userEmail}. Refresh token présent: ${!!activeGoogleAuthTokens.refreshToken}`);
+        calendarHelper.setAuth(oauth2Client); // Mettre à jour l'authentification du helper calendrier
+
+        // Rediriger vers la page de configuration avec un message de succès
+        res.redirect('/index.html?oauth_success=true#viewConfig');
     } catch (error) {
-        console.error('Erreur API /api/clients :', error.message);
-        res.status(500).json({ message: 'Erreur serveur (clients)' });
+        console.error("Erreur lors de l'échange du code ou de la sauvegarde des jetons:", error.message, error.stack);
+        res.status(500).send(`Erreur d'authentification Google: ${error.message}`);
     }
 });
 
-app.post('/api/clients', async (req, res) => {
+app.post('/api/auth/google/disconnect', async (req, res) => {
+    if (!oauth2Client) {
+        return res.status(500).json({ success: false, message: "Configuration OAuth non initialisée." });
+    }
+    try {
+        const settings = await readSettingsJson();
+        const refreshTokenToRevoke = settings.googleOAuth ? settings.googleOAuth.refreshToken : null;
+
+        if (refreshTokenToRevoke) {
+            await oauth2Client.revokeToken(refreshTokenToRevoke);
+            console.log("Jeton de rafraîchissement révoqué avec succès.");
+        }
+        
+        // Effacer les jetons de settings.json et des variables actives
+        settings.googleOAuth = { userEmail: null, refreshToken: null, scopes: [] };
+        await writeSettingsJson(settings);
+
+        activeGoogleAuthTokens = { accessToken: null, refreshToken: null, expiryDate: null, userEmail: null, scopes: [] };
+        oauth2Client.setCredentials(null); // Effacer les credentials du client en mémoire
+        calendarHelper.setAuth(null); // Réinitialiser l'auth du helper calendrier
+
+        res.json({ success: true, message: "Compte Google déconnecté avec succès." });
+    } catch (error) {
+        console.error("Erreur lors de la déconnexion du compte Google:", error.message);
+        // Même en cas d'erreur de révocation, on efface les tokens locaux pour que l'utilisateur soit déconnecté de l'app
+        try {
+            let settings = await readSettingsJson();
+            settings.googleOAuth = { userEmail: null, refreshToken: null, scopes: [] };
+            await writeSettingsJson(settings);
+            activeGoogleAuthTokens = { accessToken: null, refreshToken: null, expiryDate: null, userEmail: null, scopes: [] };
+            if(oauth2Client) oauth2Client.setCredentials(null);
+            calendarHelper.setAuth(null);
+        } catch (clearError) {
+            console.error("Erreur lors du nettoyage des tokens après échec de révocation:", clearError.message);
+        }
+        res.status(500).json({ success: false, message: `Erreur lors de la déconnexion: ${error.message}` });
+    }
+});
+
+
+// --- Points d'API Clients, Tarifs ---
+app.get('/api/clients', async (req, res) => { 
+    try {
+        const clients = await readClientsTsv();
+        res.json(clients);
+    } catch (error) { 
+        console.error('Erreur API GET /api/clients :', error.message);
+        res.status(500).json({ message: 'Erreur serveur lors de la récupération des clients' }); 
+    }
+});
+app.post('/api/clients', async (req, res) => { 
     try {
         const newClient = req.body;
         let clients = await readClientsTsv();
@@ -399,107 +499,80 @@ app.post('/api/clients', async (req, res) => {
             newClient.statut = newClient.statut || 'actif';
         }
         const index = clients.findIndex(c => c.id === newClient.id);
-        if (index > -1) {
-            clients[index] = { ...clients[index], ...newClient };
-        } else {
-            clients.push(newClient);
-        }
+        if (index > -1) clients[index] = { ...clients[index], ...newClient };
+        else clients.push(newClient);
         await writeClientsTsv(clients);
         res.status(200).json(newClient);
-    } catch (error) {
-        console.error('Erreur sauvegarde client :', error.message);
-        res.status(500).json({ message: 'Erreur sauvegarde client' });
+    } catch (error) { 
+        console.error('Erreur API POST /api/clients :', error.message);
+        res.status(500).json({ message: 'Erreur lors de la sauvegarde du client' }); 
     }
 });
-
 app.delete('/api/clients/:id', async (req, res) => {
     try {
         const { id } = req.params;
         let clients = await readClientsTsv();
         let seances = await readSeancesTsv(); 
-        const clientHasSeances = seances.some(s => s.id_client === id);
-        if (clientHasSeances) {
-            return res.status(400).json({ message: "Ce client a des séances. Supprimez/réassignez ses séances d'abord." });
-        }
+        if (seances.some(s => s.id_client === id)) return res.status(400).json({ message: "Ce client a des séances. Supprimez ou réassignez ses séances d'abord." });
         const initialLength = clients.length;
         clients = clients.filter(c => c.id !== id);
-        if (clients.length === initialLength) {
-            return res.status(404).json({ message: 'Client non trouvé' });
-        }
+        if (clients.length === initialLength) return res.status(404).json({ message: 'Client non trouvé' });
         await writeClientsTsv(clients);
-        res.status(200).json({ message: 'Client supprimé' });
-    } catch (error) {
-        console.error('Erreur suppression client :', error.message);
-        res.status(500).json({ message: 'Erreur suppression client' });
+        res.status(200).json({ message: 'Client supprimé avec succès' });
+    } catch (error) { 
+        console.error('Erreur API DELETE /api/clients/:id :', error.message);
+        res.status(500).json({ message: 'Erreur lors de la suppression du client' }); 
     }
-});
+ });
 
-
-// --- Points d'API pour les Tarifs ---
-app.get('/api/tarifs', async (req, res) => {
+app.get('/api/tarifs', async (req, res) => { 
     try {
         const tarifs = await readTarifsTsv();
         res.json(tarifs);
-    } catch (error) {
-        console.error('Erreur API /api/tarifs :', error.message);
-        res.status(500).json({ message: 'Erreur serveur (tarifs)' });
+    } catch (error) { 
+        console.error('Erreur API GET /api/tarifs :', error.message);
+        res.status(500).json({ message: 'Erreur serveur lors de la récupération des tarifs' }); 
     }
 });
-
-app.post('/api/tarifs', async (req, res) => {
+app.post('/api/tarifs', async (req, res) => { 
     try {
         const newTarif = req.body;
         let tarifs = await readTarifsTsv();
-        if (!newTarif.id) {
-            newTarif.id = await generateTarifId(newTarif.libelle, newTarif.montant, tarifs);
-        }
-        // Assurer que la durée est un nombre ou null
+        if (!newTarif.id) newTarif.id = await generateTarifId(newTarif.libelle, newTarif.montant, tarifs);
         newTarif.duree = newTarif.duree ? parseInt(newTarif.duree, 10) : null;
-        if (newTarif.duree !== null && isNaN(newTarif.duree)) {
-            return res.status(400).json({ message: 'La durée doit être un nombre valide.' });
-        }
-
+        if (newTarif.duree !== null && isNaN(newTarif.duree)) return res.status(400).json({ message: 'La durée doit être un nombre valide.' });
         const index = tarifs.findIndex(t => t.id === newTarif.id);
-        if (index > -1) {
-            tarifs[index] = newTarif;
-        } else {
-            tarifs.push(newTarif);
-        }
+        if (index > -1) tarifs[index] = newTarif;
+        else tarifs.push(newTarif);
         await writeTarifsTsv(tarifs);
         res.status(200).json(newTarif);
-    } catch (error) {
-        console.error('Erreur sauvegarde tarif :', error.message);
-        res.status(500).json({ message: 'Erreur sauvegarde tarif' });
+    } catch (error) { 
+        console.error('Erreur API POST /api/tarifs :', error.message);
+        res.status(500).json({ message: 'Erreur lors de la sauvegarde du tarif' }); 
     }
 });
-
-app.delete('/api/tarifs/:id', async (req, res) => {
+app.delete('/api/tarifs/:id', async (req, res) => { 
     try {
         const { id } = req.params;
         let tarifs = await readTarifsTsv();
         let clients = await readClientsTsv(); 
         let seances = await readSeancesTsv(); 
-        const tarifIsDefault = clients.some(c => c.defaultTarifId === id);
-        const tarifInSeance = seances.some(s => s.id_tarif === id);
-        if (tarifIsDefault || tarifInSeance) {
-            return res.status(400).json({ message: "Tarif utilisé (client/séance). Modifiez-le d'abord." });
+        if (clients.some(c => c.defaultTarifId === id) || seances.some(s => s.id_tarif === id)) {
+            return res.status(400).json({ message: "Ce tarif est utilisé comme tarif par défaut pour un client ou dans des séances. Veuillez d'abord le modifier." });
         }
         const initialLength = tarifs.length;
         tarifs = tarifs.filter(t => t.id !== id);
-        if (tarifs.length === initialLength) {
-            return res.status(404).json({ message: 'Tarif non trouvé' });
-        }
+        if (tarifs.length === initialLength) return res.status(404).json({ message: 'Tarif non trouvé' });
         await writeTarifsTsv(tarifs);
-        res.status(200).json({ message: 'Tarif supprimé' });
-    } catch (error) {
-        console.error('Erreur suppression tarif :', error.message);
-        res.status(500).json({ message: 'Erreur suppression tarif' });
+        res.status(200).json({ message: 'Tarif supprimé avec succès' });
+    } catch (error) { 
+        console.error('Erreur API DELETE /api/tarifs/:id :', error.message);
+        res.status(500).json({ message: 'Erreur lors de la suppression du tarif' }); 
     }
 });
 
-
-// --- Points d'API pour les Séances ---
-app.get('/api/seances', async (req, res) => {
+// --- Points d'API Séances ---
+app.get('/api/seances', async (req, res) => { 
     try {
         let seances = await readSeancesTsv();
         let tsvModified = false;
@@ -509,14 +582,15 @@ app.get('/api/seances', async (req, res) => {
             const files = await fs.readdir(factsDir);
             existingInvoiceFiles = files.filter(file => file.endsWith('.json')).map(file => file.slice(0, -5));
         } catch (err) {
-            if (err.code !== 'ENOENT') console.warn(`Err lecture ${factsDir}: ${err.message}`);
+            if (err.code !== 'ENOENT') console.warn(`Impossible de lire le répertoire des factures ${factsDir}: ${err.message}`);
         }
         
         for (let i = 0; i < seances.length; i++) {
             const seance = seances[i];
             if (seance.invoice_number && seance.invoice_number.trim() !== '') {
                 if (!existingInvoiceFiles.includes(seance.invoice_number)) {
-                    seances[i].invoice_number = null; tsvModified = true;
+                    seances[i].invoice_number = null;
+                    tsvModified = true;
                 }
             }
         }
@@ -526,224 +600,185 @@ app.get('/api/seances', async (req, res) => {
             const files = await fs.readdir(devisDir);
             existingDevisFiles = files.filter(file => file.endsWith('.json')).map(file => file.slice(0, -5));
         } catch (err) {
-            if (err.code !== 'ENOENT') console.warn(`Err lecture ${devisDir}: ${err.message}`);
+            if (err.code !== 'ENOENT') console.warn(`Impossible de lire le répertoire des devis ${devisDir}: ${err.message}`);
         }
 
         for (let i = 0; i < seances.length; i++) {
             const seance = seances[i];
             if (seance.devis_number && seance.devis_number.trim() !== '') {
                 if (!existingDevisFiles.includes(seance.devis_number)) {
-                    seances[i].devis_number = null; tsvModified = true;
+                    seances[i].devis_number = null;
+                    tsvModified = true;
                 }
             }
         }
 
-        if (tsvModified) await writeSeancesTsv(seances);
+        if (tsvModified) {
+            await writeSeancesTsv(seances);
+        }
         res.json(seances);
-    } catch (error) {
-        console.error('Erreur API /api/seances :', error.message, error.stack);
-        res.status(500).json({ message: 'Erreur serveur (séances)' });
+    } catch (error) { 
+        console.error('Erreur API GET /api/seances :', error.message, error.stack);
+        res.status(500).json({ message: 'Erreur serveur lors de la récupération des séances' }); 
     }
 });
-
-app.get('/api/invoice/:invoiceNumber/status', async (req, res) => {
+app.get('/api/invoice/:invoiceNumber/status', async (req, res) => { 
     const { invoiceNumber } = req.params;
     try {
         const allSeances = await readSeancesTsv();
         const isDevisRequest = invoiceNumber.startsWith('DEV-');
-        
-        const seance = allSeances.find(s =>
-            isDevisRequest ? s.devis_number === invoiceNumber : s.invoice_number === invoiceNumber
-        );
-
-        if (!seance) return res.status(404).json({ message: `Doc ${invoiceNumber} non lié à une séance.` });
-
+        const seance = allSeances.find(s => isDevisRequest ? s.devis_number === invoiceNumber : s.invoice_number === invoiceNumber);
+        if (!seance) return res.status(404).json({ message: `Document ${invoiceNumber} non lié à une séance.` });
         if (isDevisRequest) {
-            const isFutureSeance = new Date(seance.date_heure_seance) > new Date();
-            res.json({ documentType: 'devis', statusText: 'DEVIS', seanceId: seance.id_seance, isFuture: isFutureSeance });
+            res.json({ documentType: 'devis', statusText: 'DEVIS', seanceId: seance.id_seance, isFuture: new Date(seance.date_heure_seance) > new Date() });
         } else {
             let statusTextForWatermark = seance.statut_seance;
             if (seance.statut_seance === 'APAYER') statusTextForWatermark = 'À PAYER';
             else if (seance.statut_seance === 'PAYEE') statusTextForWatermark = 'PAYÉE';
             else if (seance.statut_seance === 'ANNULEE') statusTextForWatermark = 'ANNULÉE';
             else if (seance.statut_seance === 'PLANIFIEE') statusTextForWatermark = 'PLANIFIÉE';
-
-
             res.json({ documentType: 'invoice', statut_seance: seance.statut_seance, statusText: statusTextForWatermark, seanceId: seance.id_seance });
         }
-    } catch (error) {
-        console.error(`Erreur statut doc ${invoiceNumber}:`, error.message);
-        res.status(500).json({ message: 'Erreur serveur (statut doc).' });
+    } catch (error) { 
+        console.error(`Erreur API GET /api/invoice/:invoiceNumber/status pour ${invoiceNumber}:`, error.message);
+        res.status(500).json({ message: 'Erreur serveur lors de la récupération du statut du document.' }); 
     }
 });
-
 
 app.post('/api/seances', async (req, res) => {
     try {
         const seanceData = req.body;
         let allSeances = await readSeancesTsv();
-        const settings = await readSettingsJson(); // Pour GMAIL_USER et ID calendrier
         const client = (await readClientsTsv()).find(c => c.id === seanceData.id_client);
         const tarif = (await readTarifsTsv()).find(t => t.id === seanceData.id_tarif);
 
         const index = allSeances.findIndex(s => s.id_seance === seanceData.id_seance);
-        let isNewSeance = false;
-        let oldStatus = null;
-        let seanceForCalendar = { ...seanceData }; // Copie pour le calendrier
+        let isNewSeance = index === -1;
+        let oldSeanceData = isNewSeance ? null : { ...allSeances[index] };
 
-        if (index > -1) { // Mise à jour
-            oldStatus = allSeances[index].statut_seance;
-            seanceForCalendar.googleCalendarEventId = allSeances[index].googleCalendarEventId; // Récupérer l'ID existant
-            allSeances[index] = { ...allSeances[index], ...seanceData };
-        } else { // Nouvelle séance
-            isNewSeance = true;
+        if (isNewSeance) {
             allSeances.push(seanceData);
+        } else {
+            allSeances[index] = { ...allSeances[index], ...seanceData };
         }
         
-        // Logique Google Calendar
-        if (settings.manager.email && calendarHelper.isCalendarConfigured()) {
-            const seanceDateTime = new Date(seanceData.date_heure_seance);
-            let dureeMinutes = tarif && tarif.duree ? parseInt(tarif.duree) : 60; // Durée par défaut 60 min
-            if (isNaN(dureeMinutes) || dureeMinutes <=0) dureeMinutes = 60;
+        const currentSeance = isNewSeance ? seanceData : allSeances[index];
 
-            const eventSummary = `Séance ${client ? client.prenom + ' ' + client.nom : 'Client'} (${tarif ? tarif.libelle : 'Tarif'})`;
-            const eventDescription = `Séance avec ${client ? client.prenom + ' ' + client.nom : 'un client'}.\nTarif: ${tarif ? tarif.libelle : 'N/A'}\nStatut: ${seanceData.statut_seance}`;
-
-            if (isNewSeance && seanceData.statut_seance !== 'ANNULEE') {
-                try {
-                    const eventId = await calendarHelper.createEvent(
-                        settings.googleCalendar.calendarId || 'primary',
-                        eventSummary,
-                        eventDescription,
-                        seanceDateTime,
-                        dureeMinutes,
-                        settings.manager.email // Attendee (manager)
-                    );
-                    if (eventId) {
-                        if (index > -1) allSeances[index].googleCalendarEventId = eventId;
-                        else allSeances[allSeances.length - 1].googleCalendarEventId = eventId;
-                        seanceData.googleCalendarEventId = eventId; // Pour la réponse
-                        console.log(`Événement calendrier ${eventId} créé pour séance ${seanceData.id_seance}`);
-                    }
-                } catch (calError) {
-                    console.error("Erreur création événement Google Calendar:", calError.message);
-                    // Ne pas bloquer la sauvegarde de la séance pour une erreur calendrier
+        if (oauth2Client && activeGoogleAuthTokens.refreshToken && calendarHelper.isCalendarConfigured()) {
+            oauth2Client.setCredentials({ refresh_token: activeGoogleAuthTokens.refreshToken }); // S'assurer que le client a le refresh token
+            try {
+                 // S'assurer d'avoir un access token frais
+                if (!activeGoogleAuthTokens.accessToken || (activeGoogleAuthTokens.expiryDate && activeGoogleAuthTokens.expiryDate < Date.now() + 60000)) {
+                    const { token } = await oauth2Client.getAccessToken();
+                    activeGoogleAuthTokens.accessToken = token;
+                    oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: token });
                 }
-            } else if (!isNewSeance && seanceForCalendar.googleCalendarEventId) {
-                if (seanceData.statut_seance === 'ANNULEE' && oldStatus !== 'ANNULEE') {
-                    try {
-                        await calendarHelper.deleteEvent(settings.googleCalendar.calendarId || 'primary', seanceForCalendar.googleCalendarEventId);
-                        console.log(`Événement calendrier ${seanceForCalendar.googleCalendarEventId} supprimé pour séance ${seanceData.id_seance}`);
-                        if (index > -1) allSeances[index].googleCalendarEventId = null; // Retirer l'ID
-                        seanceData.googleCalendarEventId = null;
-                    } catch (calError) {
-                        console.error("Erreur suppression événement Google Calendar:", calError.message);
-                    }
-                } else if (seanceData.statut_seance !== 'ANNULEE' && oldStatus === 'ANNULEE') { // Réactivation
-                     try {
-                        const eventId = await calendarHelper.createEvent(
-                            settings.googleCalendar.calendarId || 'primary',
-                            eventSummary,
-                            eventDescription,
-                            seanceDateTime,
-                            dureeMinutes,
-                            settings.manager.email
-                        );
-                        if (eventId) {
-                             if (index > -1) allSeances[index].googleCalendarEventId = eventId;
-                             seanceData.googleCalendarEventId = eventId;
-                             console.log(`Événement calendrier ${eventId} re-créé pour séance ${seanceData.id_seance}`);
-                        }
-                    } catch (calError) {
-                        console.error("Erreur re-création événement Google Calendar:", calError.message);
-                    }
-                } else if (seanceData.statut_seance !== 'ANNULEE') { // Mise à jour d'un événement existant non annulé
-                    try {
-                        await calendarHelper.updateEvent(
-                            settings.googleCalendar.calendarId || 'primary',
-                            seanceForCalendar.googleCalendarEventId,
-                            eventSummary,
-                            eventDescription,
-                            seanceDateTime,
-                            dureeMinutes,
-                            settings.manager.email
-                        );
-                        console.log(`Événement calendrier ${seanceForCalendar.googleCalendarEventId} mis à jour pour séance ${seanceData.id_seance}`);
-                    } catch (calError) {
-                        console.error("Erreur MAJ événement Google Calendar:", calError.message);
+                calendarHelper.setAuth(oauth2Client); // Passer le client authentifié
+
+                const seanceDateTime = new Date(currentSeance.date_heure_seance);
+                let dureeMinutes = tarif && tarif.duree ? parseInt(tarif.duree) : 60;
+                if (isNaN(dureeMinutes) || dureeMinutes <= 0) dureeMinutes = 60;
+
+                const eventSummary = `Séance ${client ? client.prenom + ' ' + client.nom : 'Client'} (${tarif ? tarif.libelle : 'Tarif'})`;
+                const eventDescription = `Séance avec ${client ? client.prenom + ' ' + client.nom : 'un client'}.\nTarif: ${tarif ? tarif.libelle : 'N/A'}\nStatut: ${currentSeance.statut_seance}`;
+                const settings = await readSettingsJson();
+                const calendarIdToUse = settings.googleCalendar.calendarId || 'primary';
+
+                if (isNewSeance && currentSeance.statut_seance !== 'ANNULEE') {
+                    const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
+                    currentSeance.googleCalendarEventId = eventId;
+                } else if (!isNewSeance && oldSeanceData) {
+                    const existingEventId = oldSeanceData.googleCalendarEventId;
+                    if (currentSeance.statut_seance === 'ANNULEE' && oldSeanceData.statut_seance !== 'ANNULEE' && existingEventId) {
+                        await calendarHelper.deleteEvent(calendarIdToUse, existingEventId); 
+                        currentSeance.googleCalendarEventId = null;
+                    } else if (currentSeance.statut_seance !== 'ANNULEE' && oldSeanceData.statut_seance === 'ANNULEE') { // Réactivation
+                        const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
+                        currentSeance.googleCalendarEventId = eventId;
+                    } else if (currentSeance.statut_seance !== 'ANNULEE' && existingEventId) { // MAJ
+                        await calendarHelper.updateEvent(calendarIdToUse, existingEventId, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
+                    } else if (currentSeance.statut_seance !== 'ANNULEE' && !existingEventId) { // Création si manquant
+                        const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
+                        currentSeance.googleCalendarEventId = eventId;
                     }
                 }
+            } catch (calError) { 
+                console.error("Erreur interaction Google Calendar lors de la sauvegarde de séance:", calError.message);
+                // Ne pas bloquer la sauvegarde de la séance pour une erreur calendrier
             }
         }
+        if (isNewSeance) allSeances[allSeances.length -1] = currentSeance; 
+        else allSeances[index] = currentSeance;
 
         await writeSeancesTsv(allSeances);
-        // Renvoyer la séance avec potentiellement l'ID de l'événement calendrier
-        const finalSeanceData = index > -1 ? allSeances[index] : allSeances[allSeances.length -1];
-        res.status(200).json({ message: 'Séance enregistrée avec succès.', updatedSeance: finalSeanceData });
+        res.status(200).json({ message: 'Séance enregistrée avec succès.', updatedSeance: currentSeance });
 
     } catch (error) {
-        console.error('Erreur sauvegarde séance :', error.message, error.stack);
-        res.status(500).json({ message: `Erreur sauvegarde séance: ${error.message}` });
+        console.error('Erreur API POST /api/seances :', error.message, error.stack);
+        res.status(500).json({ message: `Erreur lors de la sauvegarde de la séance: ${error.message}` });
     }
 });
 
-app.delete('/api/seances/:id', async (req, res) => {
+app.delete('/api/seances/:id', async (req, res) => { 
     try {
         const { id } = req.params;
         let seances = await readSeancesTsv();
-        const settings = await readSettingsJson();
         const seanceToDelete = seances.find(s => s.id_seance === id);
-
         if (!seanceToDelete) return res.status(404).json({ message: 'Séance non trouvée' });
-        if (seanceToDelete.invoice_number) return res.status(400).json({ message: "Séance facturée, suppression impossible." });
+        if (seanceToDelete.invoice_number) return res.status(400).json({ message: "Cette séance a été facturée et ne peut pas être supprimée directement." });
         
-        if (seanceToDelete.googleCalendarEventId && settings.manager.email && calendarHelper.isCalendarConfigured()) {
-            try {
-                await calendarHelper.deleteEvent(settings.googleCalendar.calendarId || 'primary', seanceToDelete.googleCalendarEventId);
-                console.log(`Événement calendrier ${seanceToDelete.googleCalendarEventId} supprimé (suppression séance).`);
-            } catch (calError) {
-                console.warn(`Avertissement: Erreur suppression événement calendrier ${seanceToDelete.googleCalendarEventId}: ${calError.message}`);
-            }
+        if (seanceToDelete.googleCalendarEventId && oauth2Client && activeGoogleAuthTokens.refreshToken && calendarHelper.isCalendarConfigured()) {
+            oauth2Client.setCredentials({ refresh_token: activeGoogleAuthTokens.refreshToken });
+            try { 
+                 if (!activeGoogleAuthTokens.accessToken || (activeGoogleAuthTokens.expiryDate && activeGoogleAuthTokens.expiryDate < Date.now() + 60000)) {
+                    const { token } = await oauth2Client.getAccessToken();
+                    activeGoogleAuthTokens.accessToken = token;
+                    oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: token });
+                }
+                calendarHelper.setAuth(oauth2Client);
+                const settings = await readSettingsJson();
+                const calendarIdToUse = settings.googleCalendar.calendarId || 'primary';
+                await calendarHelper.deleteEvent(calendarIdToUse, seanceToDelete.googleCalendarEventId); 
+            } 
+            catch (calError) { console.warn(`Avertissement: Erreur lors de la suppression de l'événement calendrier ${seanceToDelete.googleCalendarEventId}: ${calError.message}`); }
         }
-        
-        if (seanceToDelete.devis_number) {
+        if (seanceToDelete.devis_number) { 
             const devisJsonPath = path.join(devisDir, `${seanceToDelete.devis_number}.json`);
             try { await fs.unlink(devisJsonPath); } 
-            catch (unlinkError) { if (unlinkError.code !== 'ENOENT') console.warn(`Avertissement: Erreur suppression devis ${seanceToDelete.devis_number}.json : ${unlinkError.message}`);}
+            catch (unlinkError) { if (unlinkError.code !== 'ENOENT') console.warn(`Avertissement: Impossible de supprimer le fichier devis ${seanceToDelete.devis_number}.json : ${unlinkError.message}`);}
         }
-
         seances = seances.filter(s => s.id_seance !== id);
         await writeSeancesTsv(seances);
-        res.status(200).json({ message: 'Séance supprimée' });
-    } catch (error) {
-        console.error('Erreur suppression séance :', error.message);
-        res.status(500).json({ message: 'Erreur suppression séance' });
+        res.status(200).json({ message: 'Séance supprimée avec succès' });
+    } catch (error) { 
+        console.error('Erreur API DELETE /api/seances/:id :', error.message);
+        res.status(500).json({ message: 'Erreur lors de la suppression de la séance' }); 
     }
 });
 
-app.post('/api/seances/:seanceId/generate-invoice', async (req, res) => {
+app.post('/api/seances/:seanceId/generate-invoice', async (req, res) => { 
     const { seanceId } = req.params;
     try {
         let allSeances = await readSeancesTsv();
         const seanceIndex = allSeances.findIndex(s => s.id_seance === seanceId);
         if (seanceIndex === -1) return res.status(404).json({ message: "Séance non trouvée." });
         const seance = allSeances[seanceIndex];
-        if (seance.invoice_number) {
+        if (seance.invoice_number) { 
             const invoiceJsonPathCheck = path.join(factsDir, `${seance.invoice_number}.json`);
             try {
                 await fs.access(invoiceJsonPathCheck);
                 return res.status(400).json({ message: `Cette séance a déjà été facturée avec le numéro ${seance.invoice_number}.` });
             } catch (e) {
-                console.warn(`Le numéro de facture ${seance.invoice_number} existe pour la séance ${seanceId} mais le fichier JSON est manquant.`);
+                console.warn(`Le numéro de facture ${seance.invoice_number} existe pour la séance ${seanceId} mais le fichier JSON est manquant. Une nouvelle facture sera générée.`);
             }
         }
 
         const clientsData = await readClientsTsv();
         const client = clientsData.find(c => c.id === seance.id_client);
-        if (!client) return res.status(404).json({ message: "Client non trouvé." });
+        if (!client) return res.status(404).json({ message: "Client associé à la séance non trouvé." });
         const tarifsData = await readTarifsTsv();
         const tarif = tarifsData.find(t => t.id === seance.id_tarif);
-        if (!tarif) return res.status(404).json({ message: "Tarif non trouvé."});
+        if (!tarif) return res.status(404).json({ message: "Tarif associé à la séance non trouvé."});
         const settings = await readSettingsJson();
         const invoiceNumber = await getNextInvoiceNumber();
         const invoiceDate = new Date().toISOString(); 
@@ -779,22 +814,21 @@ app.post('/api/seances/:seanceId/generate-invoice', async (req, res) => {
             allSeances[seanceIndex].statut_seance = 'APAYER';
         }
         await writeSeancesTsv(allSeances);
-        res.status(200).json({ message: 'Facture générée', invoiceNumber: invoiceNumber, newSeanceStatus: allSeances[seanceIndex].statut_seance });
+        res.status(200).json({ message: 'Facture générée avec succès', invoiceNumber: invoiceNumber, newSeanceStatus: allSeances[seanceIndex].statut_seance });
     } catch (error) {
-        console.error('Erreur génération facture :', error.message, error.stack);
-        res.status(500).json({ message: 'Erreur serveur (génération facture).' });
+        console.error('Erreur API POST /api/seances/:seanceId/generate-invoice :', error.message, error.stack);
+        res.status(500).json({ message: 'Erreur serveur lors de la génération de la facture.' });
     }
 });
-
-app.post('/api/seances/:seanceId/generate-devis', async (req, res) => {
+app.post('/api/seances/:seanceId/generate-devis', async (req, res) => { 
     const { seanceId } = req.params;
     try {
         let allSeances = await readSeancesTsv();
         const seanceIndex = allSeances.findIndex(s => s.id_seance === seanceId);
         if (seanceIndex === -1) return res.status(404).json({ message: "Séance non trouvée." });
         const seance = allSeances[seanceIndex];
-        if (new Date(seance.date_heure_seance) <= new Date()) return res.status(400).json({ message: "Devis pour séances futures uniquement." });
-        if (seance.devis_number) {
+        if (new Date(seance.date_heure_seance) <= new Date()) return res.status(400).json({ message: "Un devis ne peut être généré que pour une séance future." });
+        if (seance.devis_number) { 
             const devisJsonPathCheck = path.join(devisDir, `${seance.devis_number}.json`);
             try {
                 await fs.access(devisJsonPathCheck);
@@ -803,20 +837,20 @@ app.post('/api/seances/:seanceId/generate-devis', async (req, res) => {
                 console.warn(`Le numéro de devis ${seance.devis_number} existe pour la séance ${seanceId} mais le fichier JSON est manquant. Un nouveau devis sera généré.`);
             }
         }
-        if (seance.invoice_number) return res.status(400).json({ message: `Séance facturée (${seance.invoice_number}), pas de nouveau devis.` });
+        if (seance.invoice_number) return res.status(400).json({ message: `Cette séance a déjà été facturée (${seance.invoice_number}) et ne peut pas faire l'objet d'un nouveau devis.` });
 
         const clientsData = await readClientsTsv();
         const client = clientsData.find(c => c.id === seance.id_client);
-        if (!client) return res.status(404).json({ message: "Client non trouvé." });
+        if (!client) return res.status(404).json({ message: "Client associé à la séance non trouvé." });
         const tarifsData = await readTarifsTsv();
         const tarif = tarifsData.find(t => t.id === seance.id_tarif);
-        if (!tarif) return res.status(404).json({ message: "Tarif non trouvé."});
+        if (!tarif) return res.status(404).json({ message: "Tarif associé à la séance non trouvé."});
         const settings = await readSettingsJson();
         const devisNumber = await getNextDevisNumber();
         const devisGenerationDate = new Date().toISOString();
         const devisData = {
-            devisNumber: devisNumber, // Clé spécifique au devis
-            devisDate: formatDateDDMMYYYY(devisGenerationDate), // Date de génération du devis
+            devisNumber: devisNumber, 
+            devisDate: formatDateDDMMYYYY(devisGenerationDate), 
             seanceId: seance.id_seance, 
             client: {
                 name: `${client.prenom || ''} ${client.nom || ''}`.trim(),
@@ -827,9 +861,9 @@ app.post('/api/seances/:seanceId/generate-devis', async (req, res) => {
                 description: tarif.libelle || 'Prestation de service (objet du devis)',
                 quantity: 1,
                 unitPrice: parseFloat(seance.montant_facture) || 0,
-                Date: formatDateDDMMYYYY(seance.date_heure_seance) // Date of the planned service
+                Date: formatDateDDMMYYYY(seance.date_heure_seance) 
             }],
-            validityDate: calculateValidityOrDueDate(devisGenerationDate, 30), // Devis valide 30 jours
+            validityDate: calculateValidityOrDueDate(devisGenerationDate, 30), 
             tva: settings.tva || 0,
             manager: settings.manager || {},
             legal: settings.legal || {}
@@ -839,13 +873,12 @@ app.post('/api/seances/:seanceId/generate-devis', async (req, res) => {
         await fs.writeFile(devisJsonPath, JSON.stringify(devisData, null, 2), 'utf8');
         allSeances[seanceIndex].devis_number = devisNumber;
         await writeSeancesTsv(allSeances);
-        res.status(200).json({ message: 'Devis généré', devisNumber: devisNumber });
+        res.status(200).json({ message: 'Devis généré avec succès', devisNumber: devisNumber });
     } catch (error) {
-        console.error('Erreur génération devis :', error.message, error.stack);
-        res.status(500).json({ message: 'Erreur serveur (génération devis).' });
+        console.error('Erreur API POST /api/seances/:seanceId/generate-devis :', error.message, error.stack);
+        res.status(500).json({ message: 'Erreur serveur lors de la génération du devis.' });
     }
 });
-
 function generateDocumentHtmlForEmail(data) { 
     const isDevis = !!data.devisNumber;
     const docNumber = isDevis ? data.devisNumber : data.invoiceNumber;
@@ -860,7 +893,7 @@ function generateDocumentHtmlForEmail(data) {
 
     const formatDateForHtml = (dateStr) => {
         if (!dateStr) return 'N/A';
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) return dateStr; // Already formatted DD/MM/YYYY
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) return dateStr; 
         try {
             return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
         } catch(e) { return dateStr; }
@@ -981,8 +1014,7 @@ function generateDocumentHtmlForEmail(data) {
     </html>
     `;
 }
-
-async function generatePdfFromHtml(htmlContent) {
+async function generatePdfFromHtml(htmlContent) { 
     if (!puppeteer) {
       throw new Error("Puppeteer n'est pas disponible. La génération de PDF est désactivée.");
     }
@@ -1007,43 +1039,73 @@ async function generatePdfFromHtml(htmlContent) {
     }
 }
 
+// --- Envoi d'email avec OAuth2 ---
+async function sendEmailWithNodemailer(mailOptions) {
+    if (!oauth2Client || !activeGoogleAuthTokens.userEmail || !activeGoogleAuthTokens.refreshToken) {
+        console.error("Tentative d'envoi d'email sans configuration OAuth2 complète ou jeton de rafraîchissement.");
+        throw new Error("Configuration Gmail (OAuth2) incomplète ou invalide sur le serveur.");
+    }
+
+    // S'assurer que le client OAuth a les bons credentials (surtout le refresh token)
+    oauth2Client.setCredentials({
+        refresh_token: activeGoogleAuthTokens.refreshToken
+    });
+    
+    // Obtenir un nouvel access token si nécessaire (la librairie googleapis le fait automatiquement si refresh_token est là)
+    // Mais pour Nodemailer, il est parfois plus sûr de le passer explicitement s'il est frais
+    let accessTokenForMail = activeGoogleAuthTokens.accessToken;
+    if (!accessTokenForMail || (activeGoogleAuthTokens.expiryDate && activeGoogleAuthTokens.expiryDate < Date.now() + 60000 /* 1 min buffer */)) {
+        try {
+            const { token, expiry_date } = await oauth2Client.getAccessToken(); // Force le rafraîchissement
+            accessTokenForMail = token;
+            activeGoogleAuthTokens.accessToken = token; // Mettre à jour en mémoire
+            activeGoogleAuthTokens.expiryDate = expiry_date;
+        } catch (refreshError) {
+            console.error("Erreur lors du rafraîchissement du jeton d'accès pour Nodemailer:", refreshError.message);
+            throw new Error(`Impossible de rafraîchir le jeton d'accès Google: ${refreshError.message}`);
+        }
+    }
+
+
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            type: 'OAuth2',
+            user: activeGoogleAuthTokens.userEmail,
+            clientId: googleOAuthConfig.clientId,
+            clientSecret: googleOAuthConfig.clientSecret,
+            refreshToken: activeGoogleAuthTokens.refreshToken,
+            accessToken: accessTokenForMail, // Utiliser le jeton potentiellement rafraîchi
+            expires: activeGoogleAuthTokens.expiryDate 
+        }
+    });
+    return transporter.sendMail(mailOptions);
+}
+
 app.post('/api/invoice/:invoiceNumber/send-by-email', async (req, res) => {
     const { invoiceNumber } = req.params;
     const { clientEmail } = req.body; 
     if (!clientEmail) return res.status(400).json({ message: "Email client requis." });
-    if (!puppeteer) return res.status(500).json({ message: "Erreur serveur : module PDF manquant." });
+    if (!puppeteer) return res.status(500).json({ message: "Erreur PDF." });
     
-    const settings = await readSettingsJson();
-    if (!settings.manager || !settings.manager.email || settings.manager.gmailAppPasswordStatus !== 'success' || !gmailUserForTransport || !temporaryGmailAppPassword) {
-        return res.status(500).json({ message: "Configuration SMTP (Gmail) incomplète ou test non réussi sur le serveur." });
-    }
-
     try {
+        const settings = await readSettingsJson(); 
         const invoiceJsonPath = path.join(factsDir, `${invoiceNumber}.json`);
-        let invoiceData;
-        try { invoiceData = JSON.parse(await fs.readFile(invoiceJsonPath, 'utf8')); } 
-        catch (fileError) { return res.status(404).json({ message: `Facture ${invoiceNumber}.json non trouvée.` }); }
-        
+        const invoiceData = JSON.parse(await fs.readFile(invoiceJsonPath, 'utf8'));
         const documentHtmlForEmailBody = generateDocumentHtmlForEmail(invoiceData);
         const pdfBuffer = await generatePdfFromHtml(documentHtmlForEmailBody);
-
-        const transporter = nodemailer.createTransport({
-            service: 'gmail', // Utiliser 'service' pour Gmail simplifie la config
-            auth: { user: gmailUserForTransport, pass: temporaryGmailAppPassword, },
-        });
         const mailOptions = {
-            from: `"${settings.manager.name || 'Votre Cabinet'}" <${process.env.GMAIL_USER}>`,
-            to: clientEmail, cc: settings.manager.email,
+            from: `"${settings.manager.name || 'Votre Cabinet'}" <${activeGoogleAuthTokens.userEmail}>`, // Utiliser l'email OAuth
+            to: clientEmail, 
+            cc: activeGoogleAuthTokens.userEmail, 
             subject: `Facture ${invoiceNumber} - ${settings.manager.name || 'Votre Cabinet'}`,
             html: documentHtmlForEmailBody,
             attachments: [{ filename: `Facture-${invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
         };
-        await transporter.sendMail(mailOptions);
+        await sendEmailWithNodemailer(mailOptions);
         res.status(200).json({ message: `Facture ${invoiceNumber} envoyée à ${clientEmail}.` });
     } catch (error) {
         console.error(`Erreur envoi email facture ${invoiceNumber}:`, error);
-        if (error.message.includes("Puppeteer")) return res.status(500).json({ message: `Erreur PDF: ${error.message}` });
-        if (error.code === 'EAUTH' || (error.responseCode === 535 || error.responseCode === 534)) return res.status(500).json({ message: "Échec authentification SMTP." });
         res.status(500).json({ message: `Échec envoi email: ${error.message}` });
     }
 });
@@ -1052,37 +1114,26 @@ app.post('/api/devis/:devisNumber/send-by-email', async (req, res) => {
     const { devisNumber } = req.params;
     const { clientEmail } = req.body; 
     if (!clientEmail) return res.status(400).json({ message: "Email client requis." });
-    if (!puppeteer) return res.status(500).json({ message: "Erreur serveur : module PDF manquant." });
+    if (!puppeteer) return res.status(500).json({ message: "Erreur PDF." });
     
-    const settings = await readSettingsJson();
-     if (!settings.manager || !settings.manager.email || settings.manager.gmailAppPasswordStatus !== 'success' || !gmailUserForTransport || !temporaryGmailAppPassword) {
-        return res.status(500).json({ message: "Configuration SMTP (Gmail) incomplète ou test non réussi sur le serveur." });
-    }
-
     try {
+        const settings = await readSettingsJson();
         const devisJsonPath = path.join(devisDir, `${devisNumber}.json`);
-        let devisData;
-        try { devisData = JSON.parse(await fs.readFile(devisJsonPath, 'utf8'));} 
-        catch (fileError) { return res.status(404).json({ message: `Devis ${devisNumber}.json non trouvé.` });}
-        
+        const devisData = JSON.parse(await fs.readFile(devisJsonPath, 'utf8'));
         const documentHtmlForEmailBody = generateDocumentHtmlForEmail(devisData);
         const pdfBuffer = await generatePdfFromHtml(documentHtmlForEmailBody);
-        const transporter = nodemailer.createTransport({
-            service: 'gmail', auth: { user: gmailUserForTransport, pass: temporaryGmailAppPassword, },
-        });
         const mailOptions = {
-            from: `"${settings.manager.name || 'Votre Cabinet'}" <${process.env.GMAIL_USER}>`,
-            to: clientEmail, cc: settings.manager.email,
+            from: `"${settings.manager.name || 'Votre Cabinet'}" <${activeGoogleAuthTokens.userEmail}>`,
+            to: clientEmail, 
+            cc: activeGoogleAuthTokens.userEmail,
             subject: `Devis ${devisNumber} - ${settings.manager.name || 'Votre Cabinet'}`,
             html: documentHtmlForEmailBody,
             attachments: [{ filename: `Devis-${devisNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
         };
-        await transporter.sendMail(mailOptions);
+        await sendEmailWithNodemailer(mailOptions);
         res.status(200).json({ message: `Devis ${devisNumber} envoyé à ${clientEmail}.` });
     } catch (error) {
         console.error(`Erreur envoi email devis ${devisNumber}:`, error);
-        if (error.message.includes("Puppeteer")) return res.status(500).json({ message: `Erreur PDF: ${error.message}` });
-        if (error.code === 'EAUTH' || (error.responseCode === 535 || error.responseCode === 534)) return res.status(500).json({ message: "Échec authentification SMTP." });
         res.status(500).json({ message: `Échec envoi email: ${error.message}` });
     }
 });
@@ -1092,135 +1143,102 @@ app.post('/api/devis/:devisNumber/send-by-email', async (req, res) => {
 app.get('/api/settings', async (req, res) => {
     try {
         const settings = await readSettingsJson();
-        // Ne jamais renvoyer GMAIL_APP_PASSWORD au client, même s'il était stocké temporairement
-        if (settings.manager) delete settings.manager.gmailAppPassword;
-        res.json(settings);
+        // Renvoyer uniquement les informations nécessaires et non sensibles au client
+        const clientSafeSettings = {
+            manager: {
+                name: settings.manager.name,
+                title: settings.manager.title,
+                description: settings.manager.description,
+                address: settings.manager.address,
+                city: settings.manager.city,
+                phone: settings.manager.phone,
+                email: settings.manager.email, // L'email de contact, pas nécessairement l'email OAuth
+            },
+            googleOAuth: { // Indiquer si le compte est connecté et avec quel email
+                isConnected: !!(settings.googleOAuth && settings.googleOAuth.refreshToken),
+                userEmail: (settings.googleOAuth && settings.googleOAuth.userEmail) ? settings.googleOAuth.userEmail : null,
+                scopes: (settings.googleOAuth && settings.googleOAuth.scopes) ? settings.googleOAuth.scopes : []
+            },
+            tva: settings.tva,
+            legal: settings.legal,
+            googleCalendar: settings.googleCalendar
+        };
+        res.json(clientSafeSettings);
     } catch (error) {
-        console.error('Erreur API /api/settings :', error.message);
-        res.status(500).json({ message: 'Erreur serveur (paramètres)' });
+        console.error('Erreur API GET /api/settings :', error.message);
+        res.status(500).json({ message: 'Erreur serveur lors de la récupération des paramètres' });
     }
 });
 
-// Point d'API pour tester la connexion Gmail
-app.post('/api/settings/test-gmail', async (req, res) => {
-    const { email, appPassword } = req.body;
-    if (!email || !appPassword) {
-        return res.status(400).json({ success: false, message: "Email et mot de passe d'application requis." });
-    }
-    try {
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: { user: email, pass: appPassword },
-        });
-        await transporter.verify();
-        // Si la vérification réussit, stocker temporairement pour l'envoi d'email
-        temporaryGmailAppPassword = appPassword;
-        gmailUserForTransport = email;
-        res.json({ success: true, message: "Connexion Gmail réussie." });
-    } catch (error) {
-        console.error("Erreur test Gmail:", error);
-        temporaryGmailAppPassword = null; // Réinitialiser en cas d'échec
-        gmailUserForTransport = null;
-        res.status(500).json({ success: false, message: `Échec de la connexion Gmail: ${error.message}` });
-    }
-});
-
+// L'endpoint /api/settings/test-gmail n'est plus nécessaire avec OAuth2
 
 app.post('/api/settings', async (req, res) => {
     try {
-        const newSettings = req.body;
-        let currentSettings = await readSettingsJson(); // Lire les paramètres actuels pour fusionner
+        const newSettingsFromClient = req.body;
+        let currentSettings = await readSettingsJson(); 
 
-        // Gérer GMAIL_APP_PASSWORD:
-        // Si un nouveau mot de passe est fourni dans la requête (newSettings.manager.gmailAppPassword),
-        // cela signifie qu'un test a été fait (ou tenté) côté client.
-        // On utilise temporaryGmailAppPassword qui a été mis à jour par /test-gmail.
-        if (newSettings.manager && newSettings.manager.gmailAppPassword) {
-            // Le mot de passe a été testé, temporaryGmailAppPassword devrait être à jour.
-            // On ne stocke pas le mot de passe dans settings.json.
-            // On met à jour le statut du mot de passe.
-            if (newSettings.manager.email === gmailUserForTransport && temporaryGmailAppPassword) {
-                 currentSettings.manager.gmailAppPasswordStatus = 'success';
-                 currentSettings.manager.email = newSettings.manager.email; // Mettre à jour l'email GMAIL_USER
-            } else {
-                // Si l'email a changé ou que temporaryGmailAppPassword n'est pas là, le test a échoué ou n'a pas été fait correctement.
-                currentSettings.manager.gmailAppPasswordStatus = 'failed_or_not_set';
-            }
-        } else if (newSettings.manager && !newSettings.manager.gmailAppPassword) {
-            // Si aucun mot de passe n'est fourni dans la requête, on conserve le statut précédent
-            // sauf si l'email change, auquel cas le statut doit être réévalué (devient not_set)
-            if (newSettings.manager.email !== currentSettings.manager.email) {
-                currentSettings.manager.gmailAppPasswordStatus = 'not_set';
-                temporaryGmailAppPassword = null; // L'ancien mdp n'est plus valide pour le nouvel email
-                gmailUserForTransport = null;
-            }
-             // Si l'email ne change pas et pas de nouveau mdp, on garde le statut actuel
-        }
-
-
-        // Fusionner les nouveaux paramètres avec les anciens, en s'assurant que la structure est conservée
-        const updatedSettings = {
-            ...currentSettings, // Base avec la structure complète et les valeurs existantes
-            ...newSettings,     // Écraser avec les nouvelles valeurs fournies
+        // Seules les informations non-OAuth sont mises à jour directement ici.
+        // La connexion/déconnexion OAuth se fait via les endpoints dédiés.
+        const settingsToSave = {
+            ...currentSettings,
             manager: {
                 ...currentSettings.manager,
-                ...(newSettings.manager || {}),
-                gmailAppPasswordStatus: currentSettings.manager.gmailAppPasswordStatus // Assurer que le statut est bien celui calculé ci-dessus
+                name: newSettingsFromClient.manager?.name ?? currentSettings.manager.name,
+                title: newSettingsFromClient.manager?.title ?? currentSettings.manager.title,
+                description: newSettingsFromClient.manager?.description ?? currentSettings.manager.description,
+                address: newSettingsFromClient.manager?.address ?? currentSettings.manager.address,
+                city: newSettingsFromClient.manager?.city ?? currentSettings.manager.city,
+                phone: newSettingsFromClient.manager?.phone ?? currentSettings.manager.phone,
+                email: newSettingsFromClient.manager?.email ?? currentSettings.manager.email,
+                // Les champs OAuth (refreshToken, userEmail) sont gérés par le flux OAuth
             },
-            legal: { ...currentSettings.legal, ...(newSettings.legal || {}) },
-            googleCalendar: { ...currentSettings.googleCalendar, ...(newSettings.googleCalendar || {}) }
+            tva: newSettingsFromClient.tva ?? currentSettings.tva,
+            legal: { ...currentSettings.legal, ...(newSettingsFromClient.legal || {}) },
+            googleCalendar: { ...currentSettings.googleCalendar, ...(newSettingsFromClient.googleCalendar || {}) }
         };
         
-        // Retirer explicitement gmailAppPassword avant d'écrire dans le fichier
-        if (updatedSettings.manager) delete updatedSettings.manager.gmailAppPassword;
+        // Ne pas écraser les infos OAuth existantes sauf si explicitement géré par un flux de déconnexion
+        settingsToSave.googleOAuth = currentSettings.googleOAuth;
 
-        await writeSettingsJson(updatedSettings);
 
-        // Renvoyer les paramètres mis à jour (sans le mot de passe)
-        res.status(200).json(updatedSettings); 
+        await writeSettingsJson(settingsToSave);
+
+        const clientSafeResponse = { ...settingsToSave };
+         if (clientSafeResponse.manager) {
+            delete clientSafeResponse.manager.encodedGmailAppPassword; // Au cas où
+        }
+        if (clientSafeResponse.googleOAuth) { // Ne pas renvoyer le refresh token au client
+            delete clientSafeResponse.googleOAuth.refreshToken;
+        }
+
+        res.status(200).json(clientSafeResponse); 
     } catch (error) {
-        console.error('Erreur sauvegarde paramètres :', error.message);
-        res.status(500).json({ message: 'Erreur serveur (sauvegarde paramètres)' });
+        console.error('Erreur API POST /api/settings :', error.message, error.stack);
+        res.status(500).json({ message: 'Erreur serveur lors de la sauvegarde des paramètres' });
     }
 });
 
 // Démarrer le serveur
 async function startServer() {
-    // Initialiser la configuration du calendrier Google
-    try {
-        const settings = await readSettingsJson();
-        if (settings.googleCalendar && settings.googleCalendar.serviceAccountKeyPath) {
-            calendarHelper.init(settings.googleCalendar.serviceAccountKeyPath);
-        } else {
-            // Essayer d'initialiser avec le chemin par défaut ou variable d'environnement si défini dans calendarHelper
-            calendarHelper.init(); 
-        }
-    } catch (e) {
-        console.warn("Avertissement: Impossible de lire settings.json pour la configuration initiale du calendrier Google.", e.message);
-        calendarHelper.init(); // Tenter init sans chemin spécifique
-    }
-
+    await loadAndInitializeOAuthClient(); 
+    // L'initialisation de calendarHelper se fait maintenant via setAuth après l'init OAuth ou après obtention des tokens
+    // calendarHelper.init(); // L'ancienne initialisation de calendarHelper (service account) n'est plus nécessaire si tout passe par OAuth
 
     app.listen(PORT, () => {
         console.log(`Serveur Node.js en cours d'exécution sur http://localhost:${PORT}`);
-        console.log(`Les fichiers de données sont dans: ${dataDir}`);
-        console.log(`Les factures JSON seront stockées dans: ${factsDir}`);
-        console.log(`Les devis JSON seront stockés dans: ${devisDir}`);
-        console.log(`Assurez-vous que votre page invoice.html est accessible via ${process.env.INVOICE_PREVIEW_BASE_URL || 'http://fact.lpz.ovh'}/invoice.html`);
-        
-        const currentSettingsForLog = fssync.existsSync(settingsFilePath) ? JSON.parse(fssync.readFileSync(settingsFilePath, 'utf8')) : defaultSettings;
-        if (!currentSettingsForLog.manager.email || currentSettingsForLog.manager.gmailAppPasswordStatus !== 'success') {
-            console.warn("ATTENTION: GMAIL_USER (email du manager) et/ou GMAIL_APP_PASSWORD (via test de connexion) ne sont pas configurés correctement. L'envoi d'e-mails pourrait ne pas fonctionner.");
-        }
-         if (!puppeteer) {
-            console.warn("ATTENTION: Puppeteer n'a pas pu être chargé. La génération de PDF est désactivée.");
-        }
-        if (!calendarHelper.isCalendarConfigured()) {
-            console.warn("ATTENTION: Google Calendar n'est pas configuré (clé de compte de service manquante ou invalide). L'intégration calendrier est désactivée.");
-            console.warn("  Pour l'activer, placez votre fichier de clé de compte de service (credentials.json) à la racine du projet ou configurez son chemin via la variable d'environnement GOOGLE_APPLICATION_CREDENTIALS ou dans settings.json (googleCalendar.serviceAccountKeyPath).");
-
+        if (!oauth2Client) {
+            console.error("ERREUR CRITIQUE: Client OAuth2 non initialisé. Vérifiez OAuth2.0.json.");
+        } else if (!activeGoogleAuthTokens.refreshToken) {
+            console.warn("ATTENTION: Aucun compte Google n'est actuellement connecté via OAuth2. Les fonctionnalités Gmail et Calendar nécessitent une connexion.");
         } else {
-            console.log("Google Calendar est configuré.");
+            console.log(`Connecté à Google en tant que: ${activeGoogleAuthTokens.userEmail}`);
+        }
+        if (!puppeteer) console.warn("ATTENTION: Puppeteer non chargé. Génération PDF désactivée.");
+        // La configuration de calendarHelper (s'il est utilisé) dépend maintenant de l'état d'OAuth
+        if (calendarHelper.isCalendarConfigured()) { // isCalendarConfigured doit vérifier si l'auth OAuth est prête
+             console.log("L'intégration Google Calendar est prête à utiliser l'authentification OAuth.");
+        } else {
+             console.warn("ATTENTION: L'intégration Google Calendar n'est pas pleinement opérationnelle (problème d'authentification OAuth ou configuration).");
         }
     });
 }
