@@ -1,0 +1,12 @@
+{ // deplacer a la racine du projet
+    "web":{ // voir https://console.cloud.google.com/auth/clients/612866118820-mha4g3vv7ddolfrgjp0n4918ag71emn0.apps.googleusercontent.com?inv=1&invt=AbzPpA&project=therafact
+        "client_id":"612866118820-mha4g3vv7ddolfrgjp0n4918ag71emn0.apps.googleusercontent.com",
+        "project_id":"therafact",
+        "auth_uri":"https://accounts.google.com/o/oauth2/auth",
+        "token_uri":"https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret":"XXXXXX-xxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "redirect_uris":["https://fact.lpz.ovh/api/auth/google/callback","https://fact.lpz.ovh:3000/api/auth/google/callback"],
+        "javascript_origins":["https://fact.lpz.ovh","https://fact.lpz.ovh:3000"]
+    }
+}
