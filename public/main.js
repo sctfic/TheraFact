@@ -45,6 +45,9 @@ const seancesTableBody = document.querySelector('#seancesTable tbody');
 const btnAddSeance = document.getElementById('btnAddSeance');
 const cancelSeanceFormBtn = document.getElementById('cancelSeanceForm');
 const seanceClientNameInput = document.getElementById('seanceClientNameInput');
+if (seanceClientNameInput) {
+    seanceClientNameInput.setAttribute('autocomplete', 'off'); // Empêcher l'autocomplétion du navigateur
+}
 const seanceClientIdInput = document.getElementById('seanceClientIdInput');
 const clientAutocompleteResults = document.getElementById('clientAutocompleteResults');
 const seanceTarifSelect = document.getElementById('seanceTarif');
@@ -99,10 +102,7 @@ function generateUUID() {
 
 function showToast(message, type = 'info') {
     if (message.toLowerCase().includes('succès') || message.toLowerCase().includes('succes') || message.toLowerCase().includes('envoyée')) type = 'success';
-    if (message.toLowerCase().includes('erreur')) {
-        type = 'error';
-        console.error(message);
-    }
+    if (message.toLowerCase().includes('erreur')) type = 'error';
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
