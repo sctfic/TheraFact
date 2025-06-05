@@ -1,0 +1,66 @@
+/* css/tables.css */
+.table-container {
+    background-color: white;
+    padding: 1rem;
+    border-radius: 6px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.07);
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.5rem;
+    font-size: 0.95em;
+}
+
+th, td {
+    padding: 0.45rem 0.7rem;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+    white-space: nowrap;
+}
+td.wrap-text {
+    white-space: normal;
+}
+
+th {
+    background-color: #e9ecef;
+    font-weight: 600;
+    color: #333;
+    font-size: 0.97em;
+}
+
+tr:hover {
+    background-color: #f8f9fa;
+}
+
+td.actions-cell, th.actions-cell {
+    text-align: right;
+}
+td.status-cell, th.status-cell {
+    text-align: center;
+}
+td.status-cell input[type="checkbox"] {
+    height: 1.1rem;
+    width: 1.1rem;
+    cursor: pointer;
+}
+
+/* Colonne Facture/Devis spécifique pour la table des séances */
+#seancesTable th.invoice-cell,
+#seancesTable td.invoice-cell {
+    width: 110px; /* Ajusté pour potentiellement plus de contenu */
+    text-align: center;
+    white-space: nowrap;
+}
+#seancesTable td.invoice-cell a {
+    display: inline-block;
+    padding: 2px 4px;
+    text-decoration: none;
+    font-size: 0.93em;
+    margin: 0 2px;
+}
+#seancesTable td.invoice-cell button {
+    margin: 0 2px;
+}
