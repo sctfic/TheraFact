@@ -10,8 +10,8 @@
 <body>
     <header><h1>Application de Facturation Thérapie</h1></header>
     <nav>
-        <button id="navSeances" class="nav-btn">Séances</button>
-        <button id="navClients" class="nav-btn active">Clients</button>
+        <button id="navSeances" class="nav-btn active">Séances</button>
+        <button id="navClients" class="nav-btn">Clients</button>
         <button id="navTarifs" class="nav-btn">Tarifs</button>
         <button id="navDashboard" class="nav-btn">Tableau de Bord</button>
         <button id="navConfig" class="nav-btn">Config</button>
@@ -36,8 +36,7 @@
                     </div>
                     <div class="form-group">
                         <label for="seanceDate">Date et Heure* :</label>
-                        <input type="datetime-local" id="seanceDate" required>
-                    </div>
+                        <input type="datetime-local" id="seanceDate" required step="900"> </div>
                     <div class="form-group">
                         <label for="seanceTarif">Type de Tarif* :</label>
                         <select id="seanceTarif" required><option value="">Sélectionner un tarif</option></select>
@@ -229,32 +228,29 @@
             <form id="configForm" class="form-container">
                 <h3>Informations du Gestionnaire</h3>
                 <div class="form-grid config-grid">
-                    <div class="form-group"><label for="configManagerName">Nom :</label><input type="text" id="configManagerName"></div>
+                    <div class="form-group"><label for="configManagerName">Nom du gestionnaire/cabinet :</label><input type="text" id="configManagerName"></div>
                     <div class="form-group"><label for="configManagerTitle">Titre/Profession :</label><input type="text" id="configManagerTitle"></div>
                     <div class="form-group form-row"><label for="configManagerDescription">Description (activité) :</label><textarea id="configManagerDescription" rows="2"></textarea></div>
                     <div class="form-group"><label for="configManagerPhone">Téléphone :</label><input type="tel" id="configManagerPhone"></div>
+                    <div class="form-group"><label for="configManagerEmailContact">Email de contact (affiché sur factures) :</label><input type="email" id="configManagerEmailContact"></div>
                     <div class="form-group form-row"><label for="configManagerAddress">Adresse :</label><input type="text" id="configManagerAddress"></div>
                     <div class="form-group"><label for="configManagerCity">Ville :</label><input type="text" id="configManagerCity"></div>
-                    <!-- Le bloc pour Email et Mot de passe d'application Gmail est remplacé ci-dessous -->
                 </div>
 
-                <!-- NOUVEAU BLOC HTML INTÉGRÉ ICI -->
-                <h3>Paramètres Mailing & Calendar</h3>
-                <div class="form-grid config-grid">
-                    <!-- Email (GMAIL_USER) -->
-                    <div class="form-group">
-                        <label for="configManagerEmail">Email account (gmail only) :</label>
-                        <input type="email" id="configManagerEmail" size="50">
-                    </div>
-                    <!-- GMAIL_APP_PASSWORD -->
-                    <div class="form-group">
-                        <label for="configGmailAppPassword">Password d'app Gmail :</label>
-                        <input type="password" id="configGmailAppPassword" minlength="16" maxlength="16" size="50" placeholder="requis pour l'envoi d'emails et l'ajout des rdv">
-                        <small>Requis pour l'envoi d'emails et la synchronisation du calendrier Google. <a href="https://support.google.com/accounts/answer/185833?hl=fr" target="_blank" rel="noopener noreferrer">Comment générer un mot de passe d'application ?</a></small>
-                        <div id="gmailTestResult" style="margin-top: 5px; font-weight: bold;"></div>
-                    </div>
+                <h3>Connexion Compte Google (pour Email & Calendrier)</h3>
+                <div id="googleAuthStatusContainer" class="form-container" style="padding: 1rem; border: 1px solid #eee; margin-bottom:1.5rem;">
+                    <p id="googleAuthStatusText">État de la connexion : Vérification...</p>
+                    <div id="googleAuthScopes" style="font-size: 0.9em; margin-top: 0.5rem;"></div>
+                    <button type="button" id="btnConnectGoogle" class="btn btn-primary" style="margin-right: 10px;">Connecter mon compte Google</button>
+                    <button type="button" id="btnDisconnectGoogle" class="btn btn-danger" style="display:none;">Déconnecter mon compte Google</button>
                 </div>
-                <!-- FIN DU NOUVEAU BLOC HTML -->
+                
+                <div class="form-group">
+                    <label for="configGoogleCalendarId">ID du Calendrier Google à utiliser :</label>
+                    <input type="text" id="configGoogleCalendarId" placeholder="primary (pour le calendrier principal)">
+                    <small>Laissez "primary" pour utiliser le calendrier principal du compte Google connecté, ou spécifiez un ID de calendrier personnalisé.</small>
+                </div>
+
 
                 <h3>Paramètres Financiers</h3>
                 <div class="form-grid config-grid">
