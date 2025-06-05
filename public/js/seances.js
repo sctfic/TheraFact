@@ -4,11 +4,34 @@ import * as state from './state.js';
 import * as api from './api.js';
 import { showToast, generateUUID, getAppBaseUrl } from './utils.js';
 import { openDeleteModal } from './modal.js';
-import { populateTarifDropdowns } from './uiHelpers.js'; // MODIFIÉ: Importer depuis uiHelpers.js
+import { populateTarifDropdowns } from './uiHelpers.js';
 
 const APP_BASE_URL = getAppBaseUrl();
 
-// --- Gestion du formulaire de séance ---
+// Helper function pour formater une date en YYYY-MM-DD
+function formatDateToYYYYMMDD(date) {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// Nouvelle fonction pour appliquer les filtres de date par défaut
+export function applyDefaultSeanceDateFilters() {
+    if (dom.filterSeanceDateStart && dom.filterSeanceDateEnd) {
+        const today = new Date();
+
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        dom.filterSeanceDateStart.value = formatDateToYYYYMMDD(yesterday);
+
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        dom.filterSeanceDateEnd.value = formatDateToYYYYMMDD(tomorrow);
+    }
+}
+
+
 function resetAndOpenSeanceForm(seanceId = null) {
     state.setEditingSeanceId(seanceId);
     dom.seanceForm.reset();
@@ -155,6 +178,7 @@ async function handleSeanceFormSubmit(event) {
         const existingSeance = state.seances.find(s => s.id_seance === state.editingSeanceId);
         seanceData.invoice_number = existingSeance?.invoice_number || null;
         seanceData.devis_number = existingSeance?.devis_number || null;
+        seanceData.googleCalendarEventId = existingSeance?.googleCalendarEventId || null; 
     }
 
     try {
@@ -168,8 +192,6 @@ async function handleSeanceFormSubmit(event) {
     }
 }
 
-
-// --- Affichage et actions sur la table des séances ---
 export function renderSeancesTable() {
     if (!dom.seancesTableBody) return;
     dom.seancesTableBody.innerHTML = '';
@@ -299,8 +321,9 @@ export function renderSeancesTable() {
             editBtn.onclick = (e) => { e.stopPropagation(); resetAndOpenSeanceForm(seance.id_seance); };
             actionsCell.appendChild(editBtn);
             const deleteBtn = document.createElement('button');
-            deleteBtn.textContent = 'Supprimer';
-            deleteBtn.classList.add('btn', 'btn-danger', 'btn-sm');
+            deleteBtn.innerHTML = '&#x1F5D1;'; // MODIFIÉ: Icône poubelle
+            deleteBtn.title = 'Supprimer';    // Ajout du title pour l'accessibilité
+            deleteBtn.classList.add('btn', 'btn-danger', 'btn-sm', 'btn-icon-delete');
             deleteBtn.onclick = (e) => { e.stopPropagation(); openDeleteModal(seance.id_seance, 'seance', `Séance du ${new Date(seance.date_heure_seance).toLocaleDateString()}`); };
             actionsCell.appendChild(deleteBtn);
         } else { 
@@ -309,7 +332,6 @@ export function renderSeancesTable() {
         row.addEventListener('dblclick', (event) => handleSeanceRowDblClick(event, seance.id_seance));
     });
 }
-
 
 async function handleGenerateInvoice(seanceId) {
     if (state.currentlyEditingRow && state.currentlyEditingRow.dataset.seanceId === seanceId) {
@@ -353,14 +375,19 @@ async function handleSendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
     if (!state.appSettings.googleOAuth || !state.appSettings.googleOAuth.isConnected) {
         showToast("Veuillez connecter un compte Google dans la configuration pour envoyer des emails.", "warning"); return;
     }
-    if (!clientEmail) {
+    let emailToSendTo = clientEmail;
+    if (!emailToSendTo) {
         const clientForSeance = state.clients.find(c => c.id === state.seances.find(s => s.id_seance === seanceId)?.id_client);
-        showToast(`Email pour ${clientForSeance ? clientForSeance.prenom + ' ' + clientForSeance.nom : 'ce client'} non disponible.`, "error"); return;
+        if (clientForSeance && clientForSeance.email) {
+            emailToSendTo = clientForSeance.email;
+        } else {
+            showToast(`Email pour ${clientForSeance ? clientForSeance.prenom + ' ' + clientForSeance.nom : 'ce client'} non disponible. Veuillez l'ajouter à sa fiche.`, "error"); return;
+        }
     }
     showToast(`Envoi email facture ${invoiceNumber}...`, 'info');
     try {
-        const result = await api.sendInvoiceByEmailApi(invoiceNumber, clientEmail);
-        showToast(result.message || `Facture ${invoiceNumber} envoyée à ${clientEmail}.`, 'success');
+        const result = await api.sendInvoiceByEmailApi(invoiceNumber, emailToSendTo);
+        showToast(result.message || `Facture ${invoiceNumber} envoyée à ${emailToSendTo}.`, 'success');
     } catch (error) { showToast(`Erreur envoi email: ${error.message}`, 'error'); }
 }
 
@@ -372,19 +399,22 @@ async function handleSendDevisByEmail(seanceId, devisNumber, clientEmail) {
     if (!state.appSettings.googleOAuth || !state.appSettings.googleOAuth.isConnected) {
         showToast("Veuillez connecter un compte Google dans la configuration pour envoyer des emails.", "warning"); return;
     }
-    if (!clientEmail) {
+    let emailToSendTo = clientEmail;
+    if (!emailToSendTo) {
         const clientForSeance = state.clients.find(c => c.id === state.seances.find(s => s.id_seance === seanceId)?.id_client);
-        showToast(`Email pour ${clientForSeance ? clientForSeance.prenom + ' ' + clientForSeance.nom : 'ce client'} non disponible.`, "error"); return;
+        if (clientForSeance && clientForSeance.email) {
+            emailToSendTo = clientForSeance.email;
+        } else {
+            showToast(`Email pour ${clientForSeance ? clientForSeance.prenom + ' ' + clientForSeance.nom : 'ce client'} non disponible. Veuillez l'ajouter à sa fiche.`, "error"); return;
+        }
     }
     showToast(`Envoi email devis ${devisNumber}...`, 'info');
     try {
-        const result = await api.sendDevisByEmailApi(devisNumber, clientEmail);
-        showToast(result.message || `Devis ${devisNumber} envoyé à ${clientEmail}.`, 'success');
+        const result = await api.sendDevisByEmailApi(devisNumber, emailToSendTo);
+        showToast(result.message || `Devis ${devisNumber} envoyé à ${emailToSendTo}.`, 'success');
     } catch (error) { showToast(`Erreur envoi email devis: ${error.message}`, 'error'); }
 }
 
-
-// --- Édition en ligne ---
 async function handleSeanceRowDblClick(event, seanceId) {
     const row = event.currentTarget;
     if (!seanceId) return;
@@ -492,11 +522,12 @@ async function saveRowChanges(row, seanceRef) {
         state.setCurrentlyEditingRow(null); return;
     }
 
-    const oldStatus = seanceRef.statut_seance; 
     let hasChanges = false;
     const statutSelectElement = row.querySelector('td[data-column="statut_seance"] select');
     if (statutSelectElement && seanceToUpdate.statut_seance !== statutSelectElement.value) {
-        seanceToUpdate.statut_seance = statutSelectElement.value; hasChanges = true;
+        seanceToUpdate.previous_statut_seance = seanceToUpdate.statut_seance;
+        seanceToUpdate.statut_seance = statutSelectElement.value; 
+        hasChanges = true;
     }
 
     const modePaiementSelectElement = row.querySelector('td[data-column="mode_paiement"] select');
@@ -517,7 +548,6 @@ async function saveRowChanges(row, seanceRef) {
         revertRowToDisplayMode(row, seanceToUpdate); 
         state.setCurrentlyEditingRow(null); return;
     }
-    seanceToUpdate.previous_statut_seance = oldStatus; 
 
     try {
         const result = await api.saveSeance(seanceToUpdate);
@@ -527,7 +557,7 @@ async function saveRowChanges(row, seanceRef) {
         revertRowToDisplayMode(row, state.seances.find(s => s.id_seance === seanceId)); 
     } catch (error) {
         showToast(`Erreur MAJ séance: ${error.message}`, 'error');
-        revertRowToDisplayMode(row, seanceRef); 
+        revertRowToDisplayMode(row, seanceRef);
     } finally { 
         state.setCurrentlyEditingRow(null); 
     }
@@ -536,12 +566,18 @@ async function saveRowChanges(row, seanceRef) {
 function revertRowToDisplayMode(row, seance) {
     if (!row) return;
     const seanceId = row.dataset.seanceId;
-    if (!seance && seanceId) seance = state.seances.find(s => s.id_seance === seanceId);
+    if (!seance && seanceId) seance = state.seances.find(s => s.id_seance === seanceId); 
     
-    if (!seance) {
+    if (!seance) { 
          row.querySelectorAll('td[data-column]').forEach(cell => {
-            if (cell.firstChild && (cell.firstChild.tagName === 'INPUT' || cell.firstChild.tagName === 'SELECT')) cell.innerHTML = '-'; 
+            if (cell.firstChild && (cell.firstChild.tagName === 'INPUT' || cell.firstChild.tagName === 'SELECT')) {
+                cell.innerHTML = '-'; 
+            }
          });
+        const invoiceCell = row.querySelector('.invoice-cell');
+        if (invoiceCell) invoiceCell.innerHTML = '-';
+        const actionsCell = row.querySelector('.actions-cell');
+        if (actionsCell) actionsCell.innerHTML = '-';
         return;
     }
 
@@ -578,7 +614,8 @@ function revertRowToDisplayMode(row, seance) {
                 invoiceCell.appendChild(devisLink);
                 const emailDevisBtn = document.createElement('button');
                 emailDevisBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer devis" style="height: 1.3em; vertical-align: middle;">';
-                emailDevisBtn.classList.add('btn', 'btn-primary', 'btn-sm'); emailDevisBtn.title = 'Envoyer le devis par email'; emailDevisBtn.style.padding = '0.1rem 0.2rem';
+                emailDevisBtn.classList.add('btn', 'btn-primary', 'btn-sm');
+                emailDevisBtn.title = 'Envoyer le devis par email'; emailDevisBtn.style.padding = '0.1rem 0.2rem';
                 emailDevisBtn.onclick = (e) => { e.stopPropagation(); handleSendDevisByEmail(seance.id_seance, seance.devis_number, client ? client.email : null);};
                 invoiceCell.appendChild(emailDevisBtn);
             } else if (!seance.invoice_number) {
@@ -600,7 +637,8 @@ function revertRowToDisplayMode(row, seance) {
                 invoiceCell.appendChild(invoiceLink);
                 const emailBtn = document.createElement('button');
                 emailBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer facture" style="height: 1.3em; vertical-align: middle;">';
-                emailBtn.classList.add('btn', 'btn-success', 'btn-sm'); emailBtn.title = 'Envoyer la facture par email'; emailBtn.style.padding = '0.1rem 0.2rem';
+                emailBtn.classList.add('btn', 'btn-success', 'btn-sm');
+                emailBtn.title = 'Envoyer la facture par email'; emailBtn.style.padding = '0.1rem 0.2rem';
                 emailBtn.onclick = (e) => { e.stopPropagation(); handleSendInvoiceByEmail(seance.id_seance, seance.invoice_number, client ? client.email : null);};
                 invoiceCell.appendChild(emailBtn);
             } else {
@@ -622,13 +660,15 @@ function revertRowToDisplayMode(row, seance) {
                 editBtn.onclick = (e) => { e.stopPropagation(); resetAndOpenSeanceForm(seance.id_seance);};
                 actionsCell.appendChild(editBtn);
                 const deleteBtn = document.createElement('button');
-                deleteBtn.textContent = 'Supprimer'; deleteBtn.classList.add('btn', 'btn-danger', 'btn-sm');
+                deleteBtn.innerHTML = '&#x1F5D1;'; // MODIFIÉ: Icône poubelle
+                deleteBtn.title = 'Supprimer';    // Ajout du title
+                deleteBtn.classList.add('btn', 'btn-danger', 'btn-sm', 'btn-icon-delete');
                 deleteBtn.onclick = (e) => { e.stopPropagation(); openDeleteModal(seance.id_seance, 'seance', `Séance du ${new Date(seance.date_heure_seance).toLocaleDateString()}`);};
                 actionsCell.appendChild(deleteBtn);
             } else { actionsCell.textContent = '-'; }
         }
     } else if (invoiceCell) { 
-        invoiceCell.innerHTML = '-';
+        invoiceCell.innerHTML = '-'; 
         if (actionsCell) actionsCell.innerHTML = '-';
     }
 }
@@ -641,10 +681,15 @@ export function initializeSeanceManagement() {
     if (dom.seanceClientNameInput) {
         dom.seanceClientNameInput.addEventListener('input', () => {
             const searchTerm = dom.seanceClientNameInput.value.toLowerCase();
-            dom.clientAutocompleteResults.innerHTML = '';
+            if(dom.clientAutocompleteResults) dom.clientAutocompleteResults.innerHTML = ''; else return;
             if (searchTerm.length < 1) { dom.clientAutocompleteResults.classList.add('hidden'); return; }
+            
             const activeClients = state.clients.filter(c => c.statut === 'actif');
-            const matchedClients = activeClients.filter(client => client.nom.toLowerCase().includes(searchTerm) || client.prenom.toLowerCase().includes(searchTerm));
+            const matchedClients = activeClients.filter(client => 
+                (client.nom?.toLowerCase() || '').includes(searchTerm) || 
+                (client.prenom?.toLowerCase() || '').includes(searchTerm)
+            );
+
             if (matchedClients.length > 0) {
                 matchedClients.forEach(client => {
                     const div = document.createElement('div');
@@ -652,8 +697,10 @@ export function initializeSeanceManagement() {
                     div.onclick = () => {
                         dom.seanceClientNameInput.value = `${client.prenom} ${client.nom}`;
                         dom.seanceClientIdInput.value = client.id;
-                        dom.clientAutocompleteResults.innerHTML = '';
-                        dom.clientAutocompleteResults.classList.add('hidden');
+                        if (dom.clientAutocompleteResults) {
+                           dom.clientAutocompleteResults.innerHTML = '';
+                           dom.clientAutocompleteResults.classList.add('hidden');
+                        }
                         if (client.defaultTarifId && state.tarifs.find(t => t.id === client.defaultTarifId)) {
                             dom.seanceTarifSelect.value = client.defaultTarifId;
                             updateSeanceMontant();
@@ -662,17 +709,11 @@ export function initializeSeanceManagement() {
                             dom.seanceMontantInput.value = '';
                         }
                     };
-                    dom.clientAutocompleteResults.appendChild(div);
+                    if (dom.clientAutocompleteResults) dom.clientAutocompleteResults.appendChild(div);
                 });
-                dom.clientAutocompleteResults.classList.remove('hidden');
-            } else { dom.clientAutocompleteResults.classList.add('hidden'); }
-        });
-        dom.seanceClientNameInput.addEventListener('change', () => { 
-            if (dom.seanceClientNameInput.value && !dom.seanceClientIdInput.value) {
-                const clientNameFromInput = dom.seanceClientNameInput.value.trim();
-                const foundClient = state.clients.find(c => `${c.prenom} ${c.nom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase() || `${c.nom} ${c.prenom}`.trim().toLowerCase() === clientNameFromInput.toLowerCase());
-                // La sélection se fait via l'événement 'input' et le clic sur la liste.
-                // On pourrait ajouter une logique ici si l'utilisateur quitte le champ sans cliquer.
+                if (dom.clientAutocompleteResults) dom.clientAutocompleteResults.classList.remove('hidden');
+            } else { 
+                if (dom.clientAutocompleteResults) dom.clientAutocompleteResults.classList.add('hidden'); 
             }
         });
     }
@@ -688,18 +729,24 @@ export function initializeSeanceManagement() {
     if (dom.seanceStatutSelect) dom.seanceStatutSelect.addEventListener('change', (e) => toggleSeancePaymentFields(e.target.value));
     if (dom.seanceForm) dom.seanceForm.addEventListener('submit', handleSeanceFormSubmit);
 
-    // Filtres
+    applyDefaultSeanceDateFilters(); // Appliquer les filtres de date par défaut
+
     if (dom.searchSeanceClientInput) dom.searchSeanceClientInput.addEventListener('input', renderSeancesTable);
     if (dom.filterSeanceStatut) dom.filterSeanceStatut.addEventListener('change', renderSeancesTable);
     if (dom.filterSeanceDateStart) dom.filterSeanceDateStart.addEventListener('input', renderSeancesTable);
     if (dom.filterSeanceDateEnd) dom.filterSeanceDateEnd.addEventListener('input', renderSeancesTable);
-    if (dom.clearSeanceFiltersBtn) dom.clearSeanceFiltersBtn.addEventListener('click', () => {
-        if(dom.searchSeanceClientInput) dom.searchSeanceClientInput.value = '';
-        if(dom.filterSeanceStatut) dom.filterSeanceStatut.value = '';
-        if(dom.filterSeanceDateStart) dom.filterSeanceDateStart.value = '';
-        if(dom.filterSeanceDateEnd) dom.filterSeanceDateEnd.value = '';
-        renderSeancesTable();
-    });
+    
+    if (dom.clearSeanceFiltersBtn) {
+        dom.clearSeanceFiltersBtn.addEventListener('click', () => {
+            if(dom.searchSeanceClientInput) dom.searchSeanceClientInput.value = '';
+            if(dom.filterSeanceStatut) dom.filterSeanceStatut.value = '';
+            // MODIFIÉ: Vider les champs de date au lieu de réappliquer les filtres par défaut directs
+            if(dom.filterSeanceDateStart) dom.filterSeanceDateStart.value = '';
+            if(dom.filterSeanceDateEnd) dom.filterSeanceDateEnd.value = '';
+            // applyDefaultSeanceDateFilters(); // Ne plus appeler ici pour un vrai "reset"
+            renderSeancesTable(); 
+        });
+    }
 
     document.addEventListener('click', async (event) => {
         if (state.currentlyEditingRow && !state.currentlyEditingRow.contains(event.target)) {
@@ -728,14 +775,13 @@ export function initializeSeanceManagement() {
                 if (isNaN(dateValue.getTime())) return; 
 
                 let currentMinutes = dateValue.getMinutes();
-                let currentHours = dateValue.getHours();
                 const roundedMinutes = Math.round(currentMinutes / 15) * 15;
 
                 dateValue.setSeconds(0);
                 dateValue.setMilliseconds(0);
 
                 if (roundedMinutes >= 60) {
-                    dateValue.setHours(currentHours + 1); 
+                    dateValue.setHours(dateValue.getHours() + 1); 
                     dateValue.setMinutes(0);
                 } else {
                     dateValue.setMinutes(roundedMinutes);

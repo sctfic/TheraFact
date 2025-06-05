@@ -5,7 +5,7 @@ import * as api from './api.js';
 import { showToast } from './utils.js';
 import { openDeleteModal } from './modal.js';
 import { switchView } from './navigation.js';
-import { populateTarifDropdowns } from './uiHelpers.js'; // MODIFIÉ: Importer depuis uiHelpers.js
+import { populateTarifDropdowns } from './uiHelpers.js'; 
 import { 
     updateSeanceMontant as updateNewSeanceMontant, 
     toggleSeancePaymentFields as toggleNewSeancePaymentFields 
@@ -14,7 +14,7 @@ import {
 
 function openClientForm(clientId = null) {
     state.setEditingClientId(clientId);
-    populateTarifDropdowns(); // S'assurer que les tarifs sont chargés dans le selecteur
+    populateTarifDropdowns(); 
 
     if (clientId) {
         const client = state.clients.find(c => c.id === clientId);
@@ -219,8 +219,9 @@ export function renderClientsTable() {
         actionsCell.appendChild(editBtn);
         
         const deleteBtn = document.createElement('button');
-        deleteBtn.textContent = 'Supprimer'; 
-        deleteBtn.classList.add('btn', 'btn-danger', 'btn-sm');
+        deleteBtn.innerHTML = '&#x1F5D1;'; // MODIFIÉ: Icône poubelle
+        deleteBtn.title = 'Supprimer';    // Ajout du title pour l'accessibilité
+        deleteBtn.classList.add('btn', 'btn-danger', 'btn-sm', 'btn-icon-delete');
         deleteBtn.onclick = () => openDeleteModal(client.id, 'client', `${client.prenom} ${client.nom}`);
         actionsCell.appendChild(deleteBtn);
 
