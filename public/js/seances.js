@@ -25,7 +25,7 @@ function resetAndOpenSeanceForm(seanceId = null) {
     if (seanceId) {
         const seance = state.seances.find(s => s.id_seance === seanceId);
         if (seance) {
-            dom.seanceFormTitle.textContent = 'Modifier la séance';
+            // dom.seanceFormTitle.textContent = 'Modifier la séance';
             dom.seanceIdInput.value = seance.id_seance;
             const client = state.clients.find(c => c.id === seance.id_client);
             dom.seanceClientNameInput.value = client ? `${client.prenom} ${client.nom}` : '';
@@ -65,7 +65,7 @@ function resetAndOpenSeanceForm(seanceId = null) {
             }
         }
     } else {
-        dom.seanceFormTitle.textContent = 'Ajouter une nouvelle séance';
+        // dom.seanceFormTitle.textContent = 'Ajouter une nouvelle séance';
         const now = new Date();
         let currentMinutes = now.getMinutes();
         let roundedMinutes = Math.ceil(currentMinutes / 15) * 15;
@@ -239,7 +239,7 @@ export function renderSeancesTable() {
                 invoiceCell.appendChild(devisLink);
                 const emailDevisBtn = document.createElement('button');
                 emailDevisBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer devis" style="height: 1.3em; vertical-align: middle;">';
-                emailDevisBtn.classList.add('btn', 'btn-info', 'btn-sm');
+                emailDevisBtn.classList.add('btn', 'btn-primary', 'btn-sm');
                 emailDevisBtn.title = 'Envoyer le devis par email';
                 emailDevisBtn.style.padding = '0.1rem 0.2rem';
                 emailDevisBtn.onclick = (e) => { e.stopPropagation(); handleSendDevisByEmail(seance.id_seance, seance.devis_number, client ? client.email : null);};
@@ -268,7 +268,7 @@ export function renderSeancesTable() {
                 invoiceCell.appendChild(invoiceLink);
                 const emailBtn = document.createElement('button');
                 emailBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer facture" style="height: 1.3em; vertical-align: middle;">';
-                emailBtn.classList.add('btn', 'btn-info', 'btn-sm');
+                emailBtn.classList.add('btn', 'btn-success', 'btn-sm');
                 emailBtn.title = 'Envoyer la facture par email';
                 emailBtn.style.padding = '0.1rem 0.2rem';
                 emailBtn.onclick = (e) => { e.stopPropagation(); handleSendInvoiceByEmail(seance.id_seance, seance.invoice_number, client ? client.email : null);};
@@ -578,7 +578,7 @@ function revertRowToDisplayMode(row, seance) {
                 invoiceCell.appendChild(devisLink);
                 const emailDevisBtn = document.createElement('button');
                 emailDevisBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer devis" style="height: 1.3em; vertical-align: middle;">';
-                emailDevisBtn.classList.add('btn', 'btn-info', 'btn-sm'); emailDevisBtn.title = 'Envoyer le devis par email'; emailDevisBtn.style.padding = '0.1rem 0.2rem';
+                emailDevisBtn.classList.add('btn', 'btn-primary', 'btn-sm'); emailDevisBtn.title = 'Envoyer le devis par email'; emailDevisBtn.style.padding = '0.1rem 0.2rem';
                 emailDevisBtn.onclick = (e) => { e.stopPropagation(); handleSendDevisByEmail(seance.id_seance, seance.devis_number, client ? client.email : null);};
                 invoiceCell.appendChild(emailDevisBtn);
             } else if (!seance.invoice_number) {
@@ -600,7 +600,7 @@ function revertRowToDisplayMode(row, seance) {
                 invoiceCell.appendChild(invoiceLink);
                 const emailBtn = document.createElement('button');
                 emailBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer facture" style="height: 1.3em; vertical-align: middle;">';
-                emailBtn.classList.add('btn', 'btn-info', 'btn-sm'); emailBtn.title = 'Envoyer la facture par email'; emailBtn.style.padding = '0.1rem 0.2rem';
+                emailBtn.classList.add('btn', 'btn-success', 'btn-sm'); emailBtn.title = 'Envoyer la facture par email'; emailBtn.style.padding = '0.1rem 0.2rem';
                 emailBtn.onclick = (e) => { e.stopPropagation(); handleSendInvoiceByEmail(seance.id_seance, seance.invoice_number, client ? client.email : null);};
                 invoiceCell.appendChild(emailBtn);
             } else {

@@ -22,20 +22,24 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'))); // Le dossier public reste pour index.html, main.js, css, etc.
 
 const dataDir = path.join(__dirname, 'data');
 const clientsFilePath = path.join(dataDir, 'clients.tsv');
 const tarifsFilePath = path.join(dataDir, 'tarifs.tsv');
 const seancesFilePath = path.join(dataDir, 'seances.tsv');
 const settingsFilePath = path.join(dataDir, 'settings.json');
-const factsDir = path.join(__dirname, 'public', 'Facts');
-const devisDir = path.join(__dirname, 'public', 'Devis');
+
+// MODIFIÉ: Nouveaux chemins pour les devis et factures
+const devisDir = path.join(dataDir, 'Devis');        // Changé de public/Devis vers data/Devis
+const factsDir = path.join(dataDir, 'Factures');    // Changé de public/Facts vers data/Factures (et renommé Facts en Factures)
+
 const OAUTH_CREDENTIALS_PATH = path.join(__dirname, 'OAuth2.0.json');
 
+// Création des dossiers (y compris les nouveaux emplacements pour devis/factures)
 fs.mkdir(dataDir, { recursive: true }).catch(console.error);
-fs.mkdir(factsDir, { recursive: true }).catch(console.error);
-fs.mkdir(devisDir, { recursive: true }).catch(console.error);
+fs.mkdir(devisDir, { recursive: true }).catch(console.error); // data/Devis
+fs.mkdir(factsDir, { recursive: true }).catch(console.error);  // data/Factures
 
 let oauth2Client;
 let googleOAuthConfig = {}; 
@@ -104,13 +108,13 @@ async function loadAndInitializeOAuthClient() {
                 activeGoogleAuthTokens.expiryDate = newExpiryDate;
                 oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: newAccessToken });
                 console.log("Jeton d'accès rafraîchi au démarrage.");
-                calendarHelper.setAuth(oauth2Client); // Configurer calendarHelper avec le client authentifié
+                calendarHelper.setAuth(oauth2Client); 
             } catch (refreshError) {
                 console.warn("Impossible de rafraîchir le jeton d'accès au démarrage:", refreshError.message);
-                calendarHelper.setAuth(null); // S'assurer que calendarHelper n'a pas d'auth si le refresh échoue
+                calendarHelper.setAuth(null); 
             }
         } else {
-            calendarHelper.setAuth(null); // Pas de jetons, pas d'auth pour calendarHelper
+            calendarHelper.setAuth(null); 
         }
     } catch (error) {
         console.error("Erreur critique chargement/initialisation OAuth2:", error.message);
@@ -344,7 +348,7 @@ async function getNextDevisNumber() {
     const prefix = `DEV-${currentYear}-`;
     let maxCounter = 0;
     try {
-        const files = await fs.readdir(devisDir);
+        const files = await fs.readdir(devisDir); // Lirea depuis data/Devis/
         files.forEach(file => {
             if (file.startsWith(prefix) && file.endsWith('.json')) {
                 const numPart = parseInt(file.substring(prefix.length, file.length - 5), 10);
@@ -555,6 +559,7 @@ app.get('/api/seances', async (req, res) => {
 
         let existingInvoiceFiles = [];
         try {
+            // Lirea depuis data/Factures/
             const files = await fs.readdir(factsDir);
             existingInvoiceFiles = files.filter(file => file.endsWith('.json')).map(file => file.slice(0, -5));
         } catch (err) {
@@ -573,6 +578,7 @@ app.get('/api/seances', async (req, res) => {
 
         let existingDevisFiles = [];
         try {
+            // Lirea depuis data/Devis/
             const files = await fs.readdir(devisDir);
             existingDevisFiles = files.filter(file => file.endsWith('.json')).map(file => file.slice(0, -5));
         } catch (err) {
@@ -641,17 +647,15 @@ app.post('/api/seances', async (req, res) => {
         const currentSeance = isNewSeance ? seanceData : allSeances[index];
 
         if (oauth2Client && activeGoogleAuthTokens.refreshToken && calendarHelper.isCalendarConfigured()) {
-            // Assurer que le client OAuth a les bons credentials (surtout le refresh token)
             oauth2Client.setCredentials({ refresh_token: activeGoogleAuthTokens.refreshToken });
             try {
-                // S'assurer d'avoir un access token frais
                 if (!activeGoogleAuthTokens.accessToken || (activeGoogleAuthTokens.expiryDate && activeGoogleAuthTokens.expiryDate < Date.now() + 60000)) {
-                    const { token, expiry_date } = await oauth2Client.getAccessToken(); // Force le rafraîchissement
+                    const { token, expiry_date } = await oauth2Client.getAccessToken(); 
                     activeGoogleAuthTokens.accessToken = token;
                     activeGoogleAuthTokens.expiryDate = expiry_date;
-                    oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: token }); // Mettre à jour le client
+                    oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: token }); 
                 }
-                calendarHelper.setAuth(oauth2Client); // Passer le client authentifié au helper
+                calendarHelper.setAuth(oauth2Client); 
 
                 const seanceDateTime = new Date(currentSeance.date_heure_seance);
                 let dureeMinutes = tarif && tarif.duree ? parseInt(tarif.duree) : 60;
@@ -659,33 +663,31 @@ app.post('/api/seances', async (req, res) => {
 
                 const eventSummary = `Séance ${client ? client.prenom + ' ' + client.nom : 'Client'} (${tarif ? tarif.libelle : 'Tarif'})`;
                 const eventDescription = `Séance avec ${client ? client.prenom + ' ' + client.nom : 'un client'}.\nTarif: ${tarif ? tarif.libelle : 'N/A'}\nStatut: ${currentSeance.statut_seance}`;
-                const settings = await readSettingsJson(); // Pour calendarId
+                const settings = await readSettingsJson(); 
                 const calendarIdToUse = settings.googleCalendar.calendarId || 'primary';
 
                 if (isNewSeance && currentSeance.statut_seance !== 'ANNULEE') {
                     const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
                     currentSeance.googleCalendarEventId = eventId;
-                } else if (!isNewSeance && oldSeanceData) { // Mise à jour d'une séance existante
+                } else if (!isNewSeance && oldSeanceData) { 
                     const existingEventId = oldSeanceData.googleCalendarEventId;
                     if (currentSeance.statut_seance === 'ANNULEE' && oldSeanceData.statut_seance !== 'ANNULEE' && existingEventId) {
                         await calendarHelper.deleteEvent(calendarIdToUse, existingEventId); 
                         currentSeance.googleCalendarEventId = null;
-                    } else if (currentSeance.statut_seance !== 'ANNULEE' && oldSeanceData.statut_seance === 'ANNULEE') { // Réactivation
+                    } else if (currentSeance.statut_seance !== 'ANNULEE' && oldSeanceData.statut_seance === 'ANNULEE') { 
                         const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
                         currentSeance.googleCalendarEventId = eventId;
-                    } else if (currentSeance.statut_seance !== 'ANNULEE' && existingEventId) { // MAJ d'un événement existant non annulé
+                    } else if (currentSeance.statut_seance !== 'ANNULEE' && existingEventId) { 
                         await calendarHelper.updateEvent(calendarIdToUse, existingEventId, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
-                    } else if (currentSeance.statut_seance !== 'ANNULEE' && !existingEventId) { // Cas où une séance existante n'avait pas d'event GCal
+                    } else if (currentSeance.statut_seance !== 'ANNULEE' && !existingEventId) { 
                         const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
                         currentSeance.googleCalendarEventId = eventId;
                     }
                 }
             } catch (calError) { 
                 console.error("Erreur interaction Google Calendar lors de la sauvegarde de séance:", calError.message);
-                // Ne pas bloquer la sauvegarde de la séance pour une erreur calendrier
             }
         }
-        // S'assurer que la version avec l'éventuel googleCalendarEventId est bien celle qui est mise dans le tableau
         if (isNewSeance) allSeances[allSeances.length -1] = currentSeance; 
         else allSeances[index] = currentSeance;
 
@@ -709,14 +711,13 @@ app.delete('/api/seances/:id', async (req, res) => {
         if (seanceToDelete.googleCalendarEventId && oauth2Client && activeGoogleAuthTokens.refreshToken && calendarHelper.isCalendarConfigured()) {
             oauth2Client.setCredentials({ refresh_token: activeGoogleAuthTokens.refreshToken });
             try { 
-                 // S'assurer d'avoir un access token frais
                 if (!activeGoogleAuthTokens.accessToken || (activeGoogleAuthTokens.expiryDate && activeGoogleAuthTokens.expiryDate < Date.now() + 60000)) {
-                    const { token } = await oauth2Client.getAccessToken(); // Force le rafraîchissement
+                    const { token } = await oauth2Client.getAccessToken(); 
                     activeGoogleAuthTokens.accessToken = token;
-                    oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: token }); // Mettre à jour le client
+                    oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: token }); 
                 }
-                calendarHelper.setAuth(oauth2Client); // Passer le client authentifié au helper
-                const settings = await readSettingsJson(); // Pour calendarId
+                calendarHelper.setAuth(oauth2Client); 
+                const settings = await readSettingsJson(); 
                 const calendarIdToUse = settings.googleCalendar.calendarId || 'primary';
                 await calendarHelper.deleteEvent(calendarIdToUse, seanceToDelete.googleCalendarEventId); 
                 console.log(`Événement calendrier ${seanceToDelete.googleCalendarEventId} supprimé (suite à suppression séance).`);
@@ -724,6 +725,7 @@ app.delete('/api/seances/:id', async (req, res) => {
             catch (calError) { console.warn(`Avertissement: Erreur lors de la suppression de l'événement calendrier ${seanceToDelete.googleCalendarEventId}: ${calError.message}`); }
         }
         if (seanceToDelete.devis_number) { 
+            // Supprimer depuis data/Devis/
             const devisJsonPath = path.join(devisDir, `${seanceToDelete.devis_number}.json`);
             try { await fs.unlink(devisJsonPath); console.log(`Fichier devis ${seanceToDelete.devis_number}.json supprimé.`); } 
             catch (unlinkError) { if (unlinkError.code !== 'ENOENT') console.warn(`Avertissement: Impossible de supprimer le fichier devis ${seanceToDelete.devis_number}.json : ${unlinkError.message}`);}
@@ -745,6 +747,7 @@ app.post('/api/seances/:seanceId/generate-invoice', async (req, res) => {
         if (seanceIndex === -1) return res.status(404).json({ message: "Séance non trouvée." });
         const seance = allSeances[seanceIndex];
         if (seance.invoice_number) { 
+            // Vérifier dans data/Factures/
             const invoiceJsonPathCheck = path.join(factsDir, `${seance.invoice_number}.json`);
             try {
                 await fs.access(invoiceJsonPathCheck);
@@ -765,30 +768,33 @@ app.post('/api/seances/:seanceId/generate-invoice', async (req, res) => {
         const invoiceDate = new Date().toISOString(); 
         
         const invoiceData = {
-            invoiceNumber: invoiceNumber,
-            invoiceDate: formatDateDDMMYYYY(invoiceDate),
             seanceId: seance.id_seance, 
+            invoiceNumber: invoiceNumber,
+            invoiceDate: formatDateDDMMYYYY(invoiceDate), // Format JJ/MM/AAAA pour affichage
+            originalInvoiceDate: invoiceDate, // Date ISO pour traitement si besoin
+            dueDate: calculateValidityOrDueDate(invoiceDate, 30), // Échéance à 30 jours par exemple
             client: {
-                name: `${client.prenom || ''} ${client.nom || ''}`.trim(),
+                name: `${client.prenom} ${client.nom}`,
                 address: client.adresse || '',
-                city: client.ville || ''
+                city: client.ville || '',
+                email: client.email || '', // Ajout de l'email client
+                phone: client.telephone || '' // Ajout du téléphone client
             },
-            service: [
-                {
-                    description: tarif.libelle || 'Prestation de service',
-                    quantity: 1,
-                    unitPrice: parseFloat(seance.montant_facture) || 0,
-                    Date: formatDateDDMMYYYY(seance.date_heure_seance)
-                }
-            ],
-            dueDate: calculateValidityOrDueDate(invoiceDate),
-            tva: settings.tva || 0,
+            service: [{
+                Date: formatDateDDMMYYYY(seance.date_heure_seance.split('T')[0]), // Date de la prestation prévue
+                description: tarif.libelle + (tarif.duree ? ` (${tarif.duree} min)` : ''),
+                quantity: 1,
+                unitPrice: parseFloat(tarif.montant)
+            }],
+            subTotal: parseFloat(tarif.montant),
+            tva: parseFloat(settings.tva) || 0,
             manager: settings.manager || {},
-            legal: settings.legal || {}
-        };
+            legal: settings.legal || {},
+        };        // Écrire dans data/Factures/
         await fs.mkdir(factsDir, { recursive: true }); 
         const invoiceJsonPath = path.join(factsDir, `${invoiceNumber}.json`);
         await fs.writeFile(invoiceJsonPath, JSON.stringify(invoiceData, null, 2), 'utf8');
+        
         allSeances[seanceIndex].invoice_number = invoiceNumber;
         allSeances[seanceIndex].devis_number = null; 
         if (allSeances[seanceIndex].statut_seance !== 'PAYEE' && allSeances[seanceIndex].statut_seance !== 'ANNULEE') {
@@ -801,6 +807,7 @@ app.post('/api/seances/:seanceId/generate-invoice', async (req, res) => {
         res.status(500).json({ message: 'Erreur serveur lors de la génération de la facture.' });
     }
 });
+
 app.post('/api/seances/:seanceId/generate-devis', async (req, res) => { 
     const { seanceId } = req.params;
     try {
@@ -810,6 +817,7 @@ app.post('/api/seances/:seanceId/generate-devis', async (req, res) => {
         const seance = allSeances[seanceIndex];
         if (new Date(seance.date_heure_seance) <= new Date()) return res.status(400).json({ message: "Un devis ne peut être généré que pour une séance future." });
         if (seance.devis_number) { 
+            // Vérifier dans data/Devis/
             const devisJsonPathCheck = path.join(devisDir, `${seance.devis_number}.json`);
             try {
                 await fs.access(devisJsonPathCheck);
@@ -830,25 +838,30 @@ app.post('/api/seances/:seanceId/generate-devis', async (req, res) => {
         const devisNumber = await getNextDevisNumber();
         const devisGenerationDate = new Date().toISOString();
         const devisData = {
+            seanceId: seance.id_seance, 
             devisNumber: devisNumber, 
             devisDate: formatDateDDMMYYYY(devisGenerationDate), 
-            seanceId: seance.id_seance, 
+            originalDevisDate: devisGenerationDate, // Date ISO
+            validityDate: calculateValidityOrDueDate(devisGenerationDate, 30), // Validité de 30 jours
             client: {
-                name: `${client.prenom || ''} ${client.nom || ''}`.trim(),
+                name: `${client.prenom} ${client.nom}`,
                 address: client.adresse || '',
-                city: client.ville || ''
+                city: client.ville || '',
+                email: client.email || '',
+                phone: client.telephone || ''
             },
             service: [{
-                description: tarif.libelle || 'Prestation de service (objet du devis)',
+                Date: formatDateDDMMYYYY(seance.date_heure_seance.split('T')[0]), // Date de la prestation prévue
+                description: tarif.libelle + (tarif.duree ? ` (${tarif.duree} min)` : ''),
                 quantity: 1,
-                unitPrice: parseFloat(seance.montant_facture) || 0,
-                Date: formatDateDDMMYYYY(seance.date_heure_seance) 
+                unitPrice: parseFloat(tarif.montant)
             }],
-            validityDate: calculateValidityOrDueDate(devisGenerationDate, 30), 
-            tva: settings.tva || 0,
+            subTotal: parseFloat(tarif.montant),
+            tva: parseFloat(settings.tva) || 0,
             manager: settings.manager || {},
             legal: settings.legal || {}
-        };
+        };        
+        // Écrire dans data/Devis/
         await fs.mkdir(devisDir, { recursive: true }); 
         const devisJsonPath = path.join(devisDir, `${devisNumber}.json`);
         await fs.writeFile(devisJsonPath, JSON.stringify(devisData, null, 2), 'utf8');
@@ -860,7 +873,51 @@ app.post('/api/seances/:seanceId/generate-devis', async (req, res) => {
         res.status(500).json({ message: 'Erreur serveur lors de la génération du devis.' });
     }
 });
+
+// NOUVEAUX ENDPOINTS pour servir les fichiers JSON de devis et factures
+app.get('/api/data/factures/:invoiceNumber.json', async (req, res) => {
+    const { invoiceNumber } = req.params;
+    // Valider le format de invoiceNumber pour la sécurité (ex: FAC-YYYY-NNNN)
+    if (!/^FAC-\d{4}-\d{4,}$/.test(invoiceNumber)) {
+        return res.status(400).send('Numéro de facture invalide.');
+    }
+    const filePath = path.join(factsDir, `${invoiceNumber}.json`);
+    try {
+        await fs.access(filePath); // Vérifie l'existence
+        res.sendFile(filePath);
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            res.status(404).send('Facture non trouvée.');
+        } else {
+            console.error(`Erreur accès facture ${invoiceNumber}:`, error);
+            res.status(500).send('Erreur serveur.');
+        }
+    }
+});
+
+app.get('/api/data/devis/:devisNumber.json', async (req, res) => {
+    const { devisNumber } = req.params;
+    // Valider le format de devisNumber pour la sécurité (ex: DEV-YYYY-NNNN)
+     if (!/^DEV-\d{4}-\d{4,}$/.test(devisNumber)) {
+        return res.status(400).send('Numéro de devis invalide.');
+    }
+    const filePath = path.join(devisDir, `${devisNumber}.json`);
+    try {
+        await fs.access(filePath); // Vérifie l'existence
+        res.sendFile(filePath);
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            res.status(404).send('Devis non trouvé.');
+        } else {
+            console.error(`Erreur accès devis ${devisNumber}:`, error);
+            res.status(500).send('Erreur serveur.');
+        }
+    }
+});
+
+
 function generateDocumentHtmlForEmail(data) { 
+    // ... (contenu de la fonction inchangé)
     const isDevis = !!data.devisNumber;
     const docNumber = isDevis ? data.devisNumber : data.invoiceNumber;
     const docDate = isDevis ? data.devisDate : data.invoiceDate;
@@ -996,6 +1053,7 @@ function generateDocumentHtmlForEmail(data) {
     `;
 }
 async function generatePdfFromHtml(htmlContent) { 
+    // ... (contenu de la fonction inchangé)
     if (!puppeteer) {
       throw new Error("Puppeteer n'est pas disponible. La génération de PDF est désactivée.");
     }
@@ -1020,8 +1078,8 @@ async function generatePdfFromHtml(htmlContent) {
     }
 }
 
-// --- Envoi d'email avec OAuth2 ---
 async function sendEmailWithNodemailer(mailOptions) {
+    // ... (contenu de la fonction inchangé)
     if (!oauth2Client || !activeGoogleAuthTokens.userEmail || !activeGoogleAuthTokens.refreshToken) {
         console.error("Tentative d'envoi d'email sans configuration OAuth2 complète ou jeton de rafraîchissement.");
         throw new Error("Configuration Gmail (OAuth2) incomplète ou invalide sur le serveur.");
@@ -1067,6 +1125,7 @@ app.post('/api/invoice/:invoiceNumber/send-by-email', async (req, res) => {
     
     try {
         const settings = await readSettingsJson(); 
+        // Lire depuis data/Factures/
         const invoiceJsonPath = path.join(factsDir, `${invoiceNumber}.json`);
         const invoiceData = JSON.parse(await fs.readFile(invoiceJsonPath, 'utf8'));
         const documentHtmlForEmailBody = generateDocumentHtmlForEmail(invoiceData);
@@ -1095,6 +1154,7 @@ app.post('/api/devis/:devisNumber/send-by-email', async (req, res) => {
     
     try {
         const settings = await readSettingsJson();
+        // Lire depuis data/Devis/
         const devisJsonPath = path.join(devisDir, `${devisNumber}.json`);
         const devisData = JSON.parse(await fs.readFile(devisJsonPath, 'utf8'));
         const documentHtmlForEmailBody = generateDocumentHtmlForEmail(devisData);
@@ -1117,6 +1177,7 @@ app.post('/api/devis/:devisNumber/send-by-email', async (req, res) => {
 
 // --- Points d'API pour la Configuration ---
 app.get('/api/settings', async (req, res) => {
+    // ... (contenu de la fonction inchangé)
     try {
         const settings = await readSettingsJson();
         const clientSafeSettings = {
@@ -1147,6 +1208,7 @@ app.get('/api/settings', async (req, res) => {
 
 
 app.post('/api/settings', async (req, res) => {
+    // ... (contenu de la fonction inchangé)
     try {
         const newSettingsFromClient = req.body;
         let currentSettings = await readSettingsJson(); 
@@ -1189,9 +1251,8 @@ app.post('/api/settings', async (req, res) => {
 
 // Démarrer le serveur
 async function startServer() {
+    // ... (contenu de la fonction inchangé)
     await loadAndInitializeOAuthClient(); 
-    // L'initialisation de calendarHelper se fait via setAuth dans loadAndInitializeOAuthClient ou le callback OAuth
-
     app.listen(PORT, () => {
         console.log(`Serveur Node.js en cours d'exécution sur http://localhost:${PORT}`);
         if (!oauth2Client) {
@@ -1214,4 +1275,3 @@ async function startServer() {
 startServer().catch(error => {
     console.error("Impossible de démarrer le serveur:", error);
 });
-

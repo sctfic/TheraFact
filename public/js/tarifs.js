@@ -11,14 +11,14 @@ function openTarifForm(tarifId = null) {
     if (tarifId) {
         const tarif = state.tarifs.find(t => t.id === tarifId);
         if (tarif) {
-            dom.tarifFormTitle.textContent = 'Modifier le tarif';
+            // dom.tarifFormTitle.textContent = 'Modifier le tarif';
             dom.tarifIdInput.value = tarif.id;
             dom.tarifLibelleInput.value = tarif.libelle;
             dom.tarifMontantInput.value = parseFloat(tarif.montant).toFixed(2);
             dom.tarifDureeInput.value = tarif.duree || '';
         }
     } else {
-        dom.tarifFormTitle.textContent = 'Ajouter un nouveau tarif';
+        // dom.tarifFormTitle.textContent = 'Ajouter un nouveau tarif';
         dom.tarifForm.reset();
         dom.tarifIdInput.value = '';
         dom.tarifDureeInput.value = ''; 

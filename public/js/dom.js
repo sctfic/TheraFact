@@ -5,7 +5,7 @@ export const views = document.querySelectorAll('.view');
 // Clients
 export const clientFormContainer = document.getElementById('clientFormContainer');
 export const clientForm = document.getElementById('clientForm');
-export const clientFormTitle = document.getElementById('clientFormTitle');
+// export const clientFormTitle = document.getElementById('clientFormTitle');
 export const clientsTableBody = document.querySelector('#clientsTable tbody');
 export const btnAddClient = document.getElementById('btnAddClient');
 export const cancelClientFormBtn = document.getElementById('cancelClientForm');
@@ -24,7 +24,7 @@ export const clientIdInput = document.getElementById('clientId'); // Pour le for
 // Tarifs
 export const tarifFormContainer = document.getElementById('tarifFormContainer');
 export const tarifForm = document.getElementById('tarifForm');
-export const tarifFormTitle = document.getElementById('tarifFormTitle');
+// export const tarifFormTitle = document.getElementById('tarifFormTitle');
 export const tarifsTableBody = document.querySelector('#tarifsTable tbody');
 export const btnAddTarif = document.getElementById('btnAddTarif');
 export const cancelTarifFormBtn = document.getElementById('cancelTarifForm');
@@ -36,7 +36,7 @@ export const tarifIdInput = document.getElementById('tarifId'); // Pour le formu
 // Séances
 export const seanceFormContainer = document.getElementById('seanceFormContainer');
 export const seanceForm = document.getElementById('seanceForm');
-export const seanceFormTitle = document.getElementById('seanceFormTitle');
+// export const seanceFormTitle = document.getElementById('seanceFormTitle');
 export const seancesTableBody = document.querySelector('#seancesTable tbody');
 export const btnAddSeance = document.getElementById('btnAddSeance');
 export const cancelSeanceFormBtn = document.getElementById('cancelSeanceForm');

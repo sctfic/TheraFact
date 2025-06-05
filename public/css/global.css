@@ -1,4 +1,12 @@
-/* css/global.css */
+/* public/css/global.css */
+
+:root {
+    /* Ces variables peuvent toujours être utiles si d'autres parties du JS les utilisent,
+       mais ne sont plus directement pour l'animation de rétrécissement elle-même. */
+    --header-height: 60px; 
+    --footer-height: 40px; 
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
@@ -9,14 +17,26 @@ body {
     flex-direction: column;
     min-height: 100vh;
     font-size: 0.95rem;
+    overflow-x: hidden; 
+}
+
+/* Styles de base pour header et footer */
+header, footer {
+    /* z-index: 1; /* Plus crucial ici si main ne passe pas dessus */
+    flex-shrink: 0; 
+    padding: 0.7rem 1.2rem; /* Padding initial */
+    overflow: hidden; /* Important pour l'animation de max-height */
+    /* Définir une max-height initiale plus grande que le contenu pour que la transition vers 0 fonctionne */
+    /* Vous devrez peut-être ajuster ces valeurs en fonction de votre contenu réel */
 }
 
 header {
     background-color: #007bff;
     color: white;
-    padding: 0.7rem 1.2rem;
-    text-align: center;
+    text-align: center; 
     box-shadow: 0 2px 4px rgba(0,0,0,0.07);
+    position: relative; 
+    max-height: 100px; /* Hauteur max pour la transition */
 }
 
 header h1 {
@@ -25,26 +45,84 @@ header h1 {
     letter-spacing: 0.5px;
 }
 
-nav {
+footer {
+    text-align: center;
     background-color: #343a40;
-    padding: 0.3rem 0;
+    color: white;
+    margin-top: auto; 
+    font-size: 0.93em;
+    max-height: 60px; /* Hauteur max pour la transition */
+}
+
+/* Styles pour l'animation de rétrécissement et de fondu */
+header, footer {
+    /* La transition est de 1 seconde comme demandé */
+    transition: max-height 1s ease-in-out, 
+                padding-top 1s ease-in-out, 
+                padding-bottom 1s ease-in-out,
+                opacity 1s ease-in-out,
+                visibility 0s linear 1s; /* visibility change après 1s */
+    opacity: 1;
+    visibility: visible;
+}
+
+header.hidden-animated, /* Utilisation de la même classe qu'avant mais avec un effet différent */
+footer.hidden-animated {
+    max-height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    opacity: 0;
+    /* border-width: 0; /* Si vous avez des bordures à faire disparaître */
+    visibility: hidden; /* Disparaît du flux après l'animation */
+    /* La propriété transform: translateY(...) est supprimée pour un rétrécissement sur place */
+}
+
+
+/* Supprimer les styles pour #content-wrapper et #content-wrapper.content-expanded-overlay */
+/*
+#content-wrapper { ... }
+#content-wrapper.content-expanded-overlay { ... }
+*/
+
+nav {
+    background-color: #343a40; 
+    padding: 0.3rem 0; 
     display: flex;
-    justify-content: center;
+    justify-content: center; 
     box-shadow: 0 2px 4px rgba(0,0,0,0.07);
+    position: relative; 
+    flex-shrink: 0; 
 }
 
 main {
     flex-grow: 1;
-    padding: 1.2rem 0.5rem;
-    max-width: 1100px;
-    margin: 0 auto;
-    width: 100%;
+    padding: 1.2rem 0.5rem; 
+    max-width: 1100px; 
+    margin: 0 auto; 
+    width: 100%; 
     box-sizing: border-box;
+    background-color: #f4f7f6; 
+    transition: max-width 0.3s ease-in-out, padding-left 0.3s ease-in-out, padding-right 0.3s ease-in-out;
+    overflow-y: auto; 
+    overflow-x: hidden; 
+}
+
+main.main-full-width {
+    max-width: none;
+    padding-left: 0;
+    padding-right: 0;
 }
 
 .view {
     display: none;
     animation: fadeIn 0.4s;
+}
+
+#viewSeances.active,
+#viewClients.active {
+    padding-left: 0.5rem; 
+    padding-right: 0.5rem;
+    box-sizing: border-box;
 }
 
 .view.active {
@@ -65,15 +143,8 @@ h2 {
     margin-bottom: 1rem;
 }
 
-footer {
-    text-align: center;
-    padding: 0.7rem;
-    background-color: #343a40;
-    color: white;
-    margin-top: auto;
-    font-size: 0.93em;
-}
-
 .hidden { 
     display: none !important; 
 }
+
+/* Le reste des styles (modals, forms, tables, buttons, components) reste inchangé */
