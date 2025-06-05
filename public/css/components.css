@@ -1,0 +1,123 @@
+/* css/components.css */
+
+/* Filtres */
+.filters {
+    margin-bottom: 0.7rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.filters input[type="text"], 
+.filters select, 
+.filters input[type="date"] {
+    padding: 0.35rem 0.5rem;
+    border-radius: 3px;
+    border: 1px solid #ccc;
+    font-size: 0.95em;
+}
+
+/* Graphiques du Dashboard */
+.dashboard-row {
+    display: flex; 
+    gap: 1.2rem; 
+    flex-wrap: wrap;
+    margin-bottom: 1.2rem;
+}
+.dashboard-row .form-container { /* Réutilisation de form-container pour les boîtes de stats */
+    flex:1 1 220px; 
+    min-width:220px;
+}
+.dashboard-row ul {
+    list-style: none;
+    padding-left: 0;
+    margin-top: 0.5rem;
+}
+.dashboard-row li {
+    padding: 0.2rem 0;
+}
+
+.chart-controls {
+    margin-bottom: 1rem;
+}
+.chart-controls label {
+    margin-right: 0.5rem;
+}
+.chart-controls select { /* Pour le sélecteur de période du graphique */
+    display: inline-block; 
+    width: auto; 
+    padding: 0.375rem 0.75rem;
+}
+
+.chart-container {
+    width: 100%;
+    min-height: 260px;
+    border: 1px solid #eee;
+    background-color: #f9f9f9;
+    position: relative;
+    margin-bottom: 1rem;
+}
+
+.chart-container svg {
+    display: block;
+    margin: 0 auto;
+}
+
+.axis path,
+.axis line {
+    fill: none;
+    stroke: #333;
+    shape-rendering: crispEdges;
+}
+
+.axis text {
+    font-size: 0.8rem;
+    fill: #333;
+}
+
+.line {
+    fill: none;
+    stroke-width: 2px;
+}
+
+.dot {} /* Pour les points sur la ligne du graphique si besoin */
+
+/* Info-bulle pour le graphique */
+.chart-tooltip {
+    position: absolute;
+    text-align: center;
+    padding: 6px;
+    font: 11px sans-serif;
+    background: lightsteelblue;
+    border: 0px;
+    border-radius: 6px;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 101; /* Au-dessus des éléments du graphique */
+}
+
+/* Section de configuration Google Auth */
+#googleAuthStatusContainer {
+    padding: 1rem; 
+    border: 1px solid #eee; 
+    margin-bottom:1.5rem;
+}
+#googleAuthStatusContainer p {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+#googleAuthScopes {
+    font-size: 0.9em; 
+    margin-top: 0.5rem;
+    margin-bottom: 0.8rem;
+    color: #555;
+}
+#googleAuthScopes ul {
+    padding-left: 20px;
+    margin-top: 0.3rem;
+    margin-bottom: 0;
+}
+#googleAuthScopes li {
+    margin-bottom: 0.2rem;
+}

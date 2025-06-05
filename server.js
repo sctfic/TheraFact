@@ -18,7 +18,7 @@ const { google } = require('googleapis');
 const calendarHelper = require('./google-calendar-helper'); 
 
 const app = express();
-const PORT = process.env.PORT || 3000; // Utiliser le port de l'environnement ou 3000 par défaut
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -31,31 +31,29 @@ const seancesFilePath = path.join(dataDir, 'seances.tsv');
 const settingsFilePath = path.join(dataDir, 'settings.json');
 const factsDir = path.join(__dirname, 'public', 'Facts');
 const devisDir = path.join(__dirname, 'public', 'Devis');
-const OAUTH_CREDENTIALS_PATH = path.join(__dirname, 'OAuth2.0.json'); // Chemin vers vos identifiants OAuth
+const OAUTH_CREDENTIALS_PATH = path.join(__dirname, 'OAuth2.0.json');
 
 fs.mkdir(dataDir, { recursive: true }).catch(console.error);
 fs.mkdir(factsDir, { recursive: true }).catch(console.error);
 fs.mkdir(devisDir, { recursive: true }).catch(console.error);
 
-// --- Variables globales pour OAuth et la configuration ---
 let oauth2Client;
-let googleOAuthConfig = {}; // Pour stocker client_id, client_secret, redirect_uri
-let activeGoogleAuthTokens = { // Stockera les jetons actifs en mémoire pour la session serveur
+let googleOAuthConfig = {}; 
+let activeGoogleAuthTokens = {
     accessToken: null,
     refreshToken: null,
     expiryDate: null,
-    userEmail: null, // Email de l'utilisateur connecté via OAuth
+    userEmail: null, 
     scopes: []
 };
 
 const defaultSettings = {
   manager: {
-    name: "", title: "", description: "", address: "", city: "", phone: "", email: "", // L'email ici est informatif, l'email OAuth sera utilisé pour les services Google
-    // Suppression des anciens champs liés au mot de passe d'application
+    name: "", title: "", description: "", address: "", city: "", phone: "", email: "",
   },
-  googleOAuth: { // Nouvelle section pour les jetons OAuth persistants
+  googleOAuth: { 
     userEmail: null,
-    refreshToken: null, // Le refresh token est crucial et doit être stocké de manière persistante
+    refreshToken: null, 
     scopes: []
   },
   tva: 0,
@@ -70,7 +68,6 @@ const defaultSettings = {
   }
 };
 
-// --- Fonctions OAuth 2.0 ---
 async function loadAndInitializeOAuthClient() {
     try {
         const credentialsContent = await fs.readFile(OAUTH_CREDENTIALS_PATH, 'utf8');
@@ -81,10 +78,7 @@ async function loadAndInitializeOAuthClient() {
         googleOAuthConfig = {
             clientId: credentials.web.client_id,
             clientSecret: credentials.web.client_secret,
-            // Utilisez la première URI de redirection ou rendez-la configurable si nécessaire
-            // Assurez-vous que celle-ci correspond EXACTEMENT à celle configurée dans Google Cloud Console
-            // et à l'endpoint /api/auth/google/callback
-            redirectUri: credentials.web.redirect_uris[0] // Exemple: https://fact.lpz.ovh/api/auth/google/callback
+            redirectUri: credentials.web.redirect_uris[0] 
         };
 
         oauth2Client = new google.auth.OAuth2(
@@ -92,10 +86,9 @@ async function loadAndInitializeOAuthClient() {
             googleOAuthConfig.clientSecret,
             googleOAuthConfig.redirectUri
         );
-        console.log("Client OAuth2 initialisé avec succès.");
+        console.log("Client OAuth2 initialisé.");
 
-        // Charger les jetons stockés depuis settings.json s'ils existent
-        const settings = await readSettingsJson(); // Assurez-vous que readSettingsJson est appelé après l'init d'OAuth
+        const settings = await readSettingsJson(); 
         if (settings.googleOAuth && settings.googleOAuth.refreshToken) {
             oauth2Client.setCredentials({
                 refresh_token: settings.googleOAuth.refreshToken
@@ -104,32 +97,28 @@ async function loadAndInitializeOAuthClient() {
             activeGoogleAuthTokens.userEmail = settings.googleOAuth.userEmail;
             activeGoogleAuthTokens.scopes = settings.googleOAuth.scopes || [];
             console.log(`Jeton de rafraîchissement chargé pour ${activeGoogleAuthTokens.userEmail}.`);
-            // Tenter de rafraîchir le jeton d'accès au démarrage pour vérifier la validité
+            
             try {
                 const { token: newAccessToken, expiry_date: newExpiryDate } = await oauth2Client.getAccessToken();
                 activeGoogleAuthTokens.accessToken = newAccessToken;
                 activeGoogleAuthTokens.expiryDate = newExpiryDate;
                 oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: newAccessToken });
-                console.log("Jeton d'accès rafraîchi avec succès au démarrage.");
+                console.log("Jeton d'accès rafraîchi au démarrage.");
+                calendarHelper.setAuth(oauth2Client); // Configurer calendarHelper avec le client authentifié
             } catch (refreshError) {
                 console.warn("Impossible de rafraîchir le jeton d'accès au démarrage:", refreshError.message);
-                // Le refresh token pourrait être invalide, l'utilisateur devra se reconnecter.
-                // Effacer les tokens invalides des settings ?
-                // await clearStoredTokens(); // Fonction à créer si besoin
+                calendarHelper.setAuth(null); // S'assurer que calendarHelper n'a pas d'auth si le refresh échoue
             }
+        } else {
+            calendarHelper.setAuth(null); // Pas de jetons, pas d'auth pour calendarHelper
         }
-         // Initialiser le helper calendrier avec le client OAuth2 (si tokens dispo) ou sans authentification pour l'instant
-        calendarHelper.setAuth(oauth2Client);
-
-
     } catch (error) {
-        console.error("Erreur critique lors du chargement ou de l'initialisation du client OAuth2:", error.message);
-        console.error("  Assurez-vous que le fichier OAuth2.0.json est présent à la racine du serveur et correctement formaté.");
-        oauth2Client = null; // Empêcher l'utilisation si l'initialisation échoue
+        console.error("Erreur critique chargement/initialisation OAuth2:", error.message);
+        oauth2Client = null; 
+        calendarHelper.setAuth(null);
     }
 }
 
-// --- Fonctions utilitaires pour la lecture/écriture TSV (inchangées) ---
 function parseTSV(tsvString, headers) {
     const lines = tsvString.trim().split(/\r?\n/);
     if (lines.length === 0 || (lines.length === 1 && lines[0].trim() === '')) return [];
@@ -254,7 +243,6 @@ async function readSettingsJson() {
         await fs.access(dataDir);
         const data = await fs.readFile(settingsFilePath, 'utf8');
         const loadedSettings = JSON.parse(data);
-        // Fusionner avec les valeurs par défaut pour s'assurer que toutes les clés existent
         const mergedSettings = {
             ...defaultSettings,
             ...loadedSettings,
@@ -266,31 +254,27 @@ async function readSettingsJson() {
         return mergedSettings;
     } catch (error) {
         if (error.code === 'ENOENT') {
-            console.log(`Fichier ${settingsFilePath} non trouvé. Création avec les valeurs par défaut...`);
             try {
                 await fs.writeFile(settingsFilePath, JSON.stringify(defaultSettings, null, 2), 'utf8');
-                console.log(`Fichier ${settingsFilePath} créé avec succès.`);
-                return { ...defaultSettings }; // Retourner une copie pour éviter la modification de l'objet par défaut
+                return { ...defaultSettings }; 
             } catch (writeError) {
-                 console.error(`Échec de la création du fichier ${settingsFilePath}:`, writeError.message);
+                 console.error(`Échec création ${settingsFilePath}:`, writeError.message);
                  return { ...defaultSettings };
             }
         }
         console.error(`Erreur lecture/parsing ${settingsFilePath}:`, error.message);
-        return { ...defaultSettings }; // Fallback
+        return { ...defaultSettings }; 
     }
 }
 
 async function writeSettingsJson(settingsToSave) {
     try {
         await fs.mkdir(dataDir, { recursive: true });
-        // S'assurer que les champs sensibles non persistants ne sont pas écrits
-        const cleanSettings = JSON.parse(JSON.stringify(settingsToSave)); // Deep copy
+        const cleanSettings = JSON.parse(JSON.stringify(settingsToSave)); 
         if (cleanSettings.manager) {
-            delete cleanSettings.manager.gmailAppPassword; // Au cas où il traînerait
-            delete cleanSettings.manager.encodedGmailAppPassword; // Supprimer l'ancien champ
+            delete cleanSettings.manager.gmailAppPassword; 
+            delete cleanSettings.manager.encodedGmailAppPassword; 
         }
-        // Les jetons OAuth (accessToken, refreshToken) sont dans googleOAuth et sont gérés là
         await fs.writeFile(settingsFilePath, JSON.stringify(cleanSettings, null, 2), 'utf8');
     } catch (error) {
         console.error(`Erreur écriture ${settingsFilePath}:`, error.message);
@@ -379,13 +363,13 @@ app.get('/api/auth/google', (req, res) => {
     const scopes = [
         'https://www.googleapis.com/auth/gmail.send',
         'https://www.googleapis.com/auth/calendar.events',
-        'https://www.googleapis.com/auth/userinfo.email', // Pour obtenir l'email de l'utilisateur
-        'https://www.googleapis.com/auth/userinfo.profile' // Pour obtenir le nom (optionnel)
+        'https://www.googleapis.com/auth/userinfo.email', 
+        'https://www.googleapis.com/auth/userinfo.profile' 
     ];
     const authorizeUrl = oauth2Client.generateAuthUrl({
-        access_type: 'offline', // Crucial pour obtenir un refresh_token
+        access_type: 'offline', 
         scope: scopes,
-        prompt: 'consent' // Force l'affichage de l'écran de consentement pour s'assurer d'obtenir un refresh_token
+        prompt: 'consent' 
     });
     res.redirect(authorizeUrl);
 });
@@ -402,36 +386,30 @@ app.get('/api/auth/google/callback', async (req, res) => {
         const { tokens } = await oauth2Client.getToken(code);
         oauth2Client.setCredentials(tokens);
 
-        // Récupérer l'email de l'utilisateur
         const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
         const userInfo = await oauth2.userinfo.get();
         const userEmail = userInfo.data.email;
 
-        // Mettre à jour les jetons actifs en mémoire
         activeGoogleAuthTokens.accessToken = tokens.access_token;
-        activeGoogleAuthTokens.refreshToken = tokens.refresh_token || activeGoogleAuthTokens.refreshToken; // Google ne renvoie le refresh_token que la première fois
+        activeGoogleAuthTokens.refreshToken = tokens.refresh_token || activeGoogleAuthTokens.refreshToken; 
         activeGoogleAuthTokens.expiryDate = tokens.expiry_date;
         activeGoogleAuthTokens.userEmail = userEmail;
         activeGoogleAuthTokens.scopes = tokens.scope ? tokens.scope.split(' ') : [];
 
-
-        // Sauvegarder le refresh_token et l'email dans settings.json
         let settings = await readSettingsJson();
         settings.googleOAuth = {
             userEmail: userEmail,
-            refreshToken: activeGoogleAuthTokens.refreshToken, // S'assurer de sauvegarder le nouveau refresh_token s'il est fourni
+            refreshToken: activeGoogleAuthTokens.refreshToken, 
             scopes: activeGoogleAuthTokens.scopes
         };
-        // L'email du manager principal peut aussi être mis à jour ici si souhaité
-        if (settings.manager && !settings.manager.email) { // Mettre à jour l'email du manager s'il n'est pas déjà défini
+        if (settings.manager && !settings.manager.email) { 
             settings.manager.email = userEmail;
         }
         await writeSettingsJson(settings);
         
         console.log(`Tokens obtenus et sauvegardés pour ${userEmail}. Refresh token présent: ${!!activeGoogleAuthTokens.refreshToken}`);
-        calendarHelper.setAuth(oauth2Client); // Mettre à jour l'authentification du helper calendrier
+        calendarHelper.setAuth(oauth2Client); 
 
-        // Rediriger vers la page de configuration avec un message de succès
         res.redirect('/index.html?oauth_success=true#viewConfig');
     } catch (error) {
         console.error("Erreur lors de l'échange du code ou de la sauvegarde des jetons:", error.message, error.stack);
@@ -452,18 +430,16 @@ app.post('/api/auth/google/disconnect', async (req, res) => {
             console.log("Jeton de rafraîchissement révoqué avec succès.");
         }
         
-        // Effacer les jetons de settings.json et des variables actives
         settings.googleOAuth = { userEmail: null, refreshToken: null, scopes: [] };
         await writeSettingsJson(settings);
 
         activeGoogleAuthTokens = { accessToken: null, refreshToken: null, expiryDate: null, userEmail: null, scopes: [] };
-        oauth2Client.setCredentials(null); // Effacer les credentials du client en mémoire
-        calendarHelper.setAuth(null); // Réinitialiser l'auth du helper calendrier
+        oauth2Client.setCredentials(null); 
+        calendarHelper.setAuth(null); 
 
         res.json({ success: true, message: "Compte Google déconnecté avec succès." });
     } catch (error) {
         console.error("Erreur lors de la déconnexion du compte Google:", error.message);
-        // Même en cas d'erreur de révocation, on efface les tokens locaux pour que l'utilisateur soit déconnecté de l'app
         try {
             let settings = await readSettingsJson();
             settings.googleOAuth = { userEmail: null, refreshToken: null, scopes: [] };
@@ -665,15 +641,17 @@ app.post('/api/seances', async (req, res) => {
         const currentSeance = isNewSeance ? seanceData : allSeances[index];
 
         if (oauth2Client && activeGoogleAuthTokens.refreshToken && calendarHelper.isCalendarConfigured()) {
-            oauth2Client.setCredentials({ refresh_token: activeGoogleAuthTokens.refreshToken }); // S'assurer que le client a le refresh token
+            // Assurer que le client OAuth a les bons credentials (surtout le refresh token)
+            oauth2Client.setCredentials({ refresh_token: activeGoogleAuthTokens.refreshToken });
             try {
-                 // S'assurer d'avoir un access token frais
+                // S'assurer d'avoir un access token frais
                 if (!activeGoogleAuthTokens.accessToken || (activeGoogleAuthTokens.expiryDate && activeGoogleAuthTokens.expiryDate < Date.now() + 60000)) {
-                    const { token } = await oauth2Client.getAccessToken();
+                    const { token, expiry_date } = await oauth2Client.getAccessToken(); // Force le rafraîchissement
                     activeGoogleAuthTokens.accessToken = token;
-                    oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: token });
+                    activeGoogleAuthTokens.expiryDate = expiry_date;
+                    oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: token }); // Mettre à jour le client
                 }
-                calendarHelper.setAuth(oauth2Client); // Passer le client authentifié
+                calendarHelper.setAuth(oauth2Client); // Passer le client authentifié au helper
 
                 const seanceDateTime = new Date(currentSeance.date_heure_seance);
                 let dureeMinutes = tarif && tarif.duree ? parseInt(tarif.duree) : 60;
@@ -681,13 +659,13 @@ app.post('/api/seances', async (req, res) => {
 
                 const eventSummary = `Séance ${client ? client.prenom + ' ' + client.nom : 'Client'} (${tarif ? tarif.libelle : 'Tarif'})`;
                 const eventDescription = `Séance avec ${client ? client.prenom + ' ' + client.nom : 'un client'}.\nTarif: ${tarif ? tarif.libelle : 'N/A'}\nStatut: ${currentSeance.statut_seance}`;
-                const settings = await readSettingsJson();
+                const settings = await readSettingsJson(); // Pour calendarId
                 const calendarIdToUse = settings.googleCalendar.calendarId || 'primary';
 
                 if (isNewSeance && currentSeance.statut_seance !== 'ANNULEE') {
                     const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
                     currentSeance.googleCalendarEventId = eventId;
-                } else if (!isNewSeance && oldSeanceData) {
+                } else if (!isNewSeance && oldSeanceData) { // Mise à jour d'une séance existante
                     const existingEventId = oldSeanceData.googleCalendarEventId;
                     if (currentSeance.statut_seance === 'ANNULEE' && oldSeanceData.statut_seance !== 'ANNULEE' && existingEventId) {
                         await calendarHelper.deleteEvent(calendarIdToUse, existingEventId); 
@@ -695,9 +673,9 @@ app.post('/api/seances', async (req, res) => {
                     } else if (currentSeance.statut_seance !== 'ANNULEE' && oldSeanceData.statut_seance === 'ANNULEE') { // Réactivation
                         const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
                         currentSeance.googleCalendarEventId = eventId;
-                    } else if (currentSeance.statut_seance !== 'ANNULEE' && existingEventId) { // MAJ
+                    } else if (currentSeance.statut_seance !== 'ANNULEE' && existingEventId) { // MAJ d'un événement existant non annulé
                         await calendarHelper.updateEvent(calendarIdToUse, existingEventId, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
-                    } else if (currentSeance.statut_seance !== 'ANNULEE' && !existingEventId) { // Création si manquant
+                    } else if (currentSeance.statut_seance !== 'ANNULEE' && !existingEventId) { // Cas où une séance existante n'avait pas d'event GCal
                         const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
                         currentSeance.googleCalendarEventId = eventId;
                     }
@@ -707,6 +685,7 @@ app.post('/api/seances', async (req, res) => {
                 // Ne pas bloquer la sauvegarde de la séance pour une erreur calendrier
             }
         }
+        // S'assurer que la version avec l'éventuel googleCalendarEventId est bien celle qui est mise dans le tableau
         if (isNewSeance) allSeances[allSeances.length -1] = currentSeance; 
         else allSeances[index] = currentSeance;
 
@@ -730,21 +709,23 @@ app.delete('/api/seances/:id', async (req, res) => {
         if (seanceToDelete.googleCalendarEventId && oauth2Client && activeGoogleAuthTokens.refreshToken && calendarHelper.isCalendarConfigured()) {
             oauth2Client.setCredentials({ refresh_token: activeGoogleAuthTokens.refreshToken });
             try { 
-                 if (!activeGoogleAuthTokens.accessToken || (activeGoogleAuthTokens.expiryDate && activeGoogleAuthTokens.expiryDate < Date.now() + 60000)) {
-                    const { token } = await oauth2Client.getAccessToken();
+                 // S'assurer d'avoir un access token frais
+                if (!activeGoogleAuthTokens.accessToken || (activeGoogleAuthTokens.expiryDate && activeGoogleAuthTokens.expiryDate < Date.now() + 60000)) {
+                    const { token } = await oauth2Client.getAccessToken(); // Force le rafraîchissement
                     activeGoogleAuthTokens.accessToken = token;
-                    oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: token });
+                    oauth2Client.setCredentials({ ...oauth2Client.credentials, access_token: token }); // Mettre à jour le client
                 }
-                calendarHelper.setAuth(oauth2Client);
-                const settings = await readSettingsJson();
+                calendarHelper.setAuth(oauth2Client); // Passer le client authentifié au helper
+                const settings = await readSettingsJson(); // Pour calendarId
                 const calendarIdToUse = settings.googleCalendar.calendarId || 'primary';
                 await calendarHelper.deleteEvent(calendarIdToUse, seanceToDelete.googleCalendarEventId); 
+                console.log(`Événement calendrier ${seanceToDelete.googleCalendarEventId} supprimé (suite à suppression séance).`);
             } 
             catch (calError) { console.warn(`Avertissement: Erreur lors de la suppression de l'événement calendrier ${seanceToDelete.googleCalendarEventId}: ${calError.message}`); }
         }
         if (seanceToDelete.devis_number) { 
             const devisJsonPath = path.join(devisDir, `${seanceToDelete.devis_number}.json`);
-            try { await fs.unlink(devisJsonPath); } 
+            try { await fs.unlink(devisJsonPath); console.log(`Fichier devis ${seanceToDelete.devis_number}.json supprimé.`); } 
             catch (unlinkError) { if (unlinkError.code !== 'ENOENT') console.warn(`Avertissement: Impossible de supprimer le fichier devis ${seanceToDelete.devis_number}.json : ${unlinkError.message}`);}
         }
         seances = seances.filter(s => s.id_seance !== id);
@@ -1046,26 +1027,22 @@ async function sendEmailWithNodemailer(mailOptions) {
         throw new Error("Configuration Gmail (OAuth2) incomplète ou invalide sur le serveur.");
     }
 
-    // S'assurer que le client OAuth a les bons credentials (surtout le refresh token)
     oauth2Client.setCredentials({
         refresh_token: activeGoogleAuthTokens.refreshToken
     });
     
-    // Obtenir un nouvel access token si nécessaire (la librairie googleapis le fait automatiquement si refresh_token est là)
-    // Mais pour Nodemailer, il est parfois plus sûr de le passer explicitement s'il est frais
     let accessTokenForMail = activeGoogleAuthTokens.accessToken;
-    if (!accessTokenForMail || (activeGoogleAuthTokens.expiryDate && activeGoogleAuthTokens.expiryDate < Date.now() + 60000 /* 1 min buffer */)) {
+    if (!accessTokenForMail || (activeGoogleAuthTokens.expiryDate && activeGoogleAuthTokens.expiryDate < Date.now() + 60000 )) {
         try {
-            const { token, expiry_date } = await oauth2Client.getAccessToken(); // Force le rafraîchissement
+            const { token, expiry_date } = await oauth2Client.getAccessToken(); 
             accessTokenForMail = token;
-            activeGoogleAuthTokens.accessToken = token; // Mettre à jour en mémoire
+            activeGoogleAuthTokens.accessToken = token; 
             activeGoogleAuthTokens.expiryDate = expiry_date;
         } catch (refreshError) {
             console.error("Erreur lors du rafraîchissement du jeton d'accès pour Nodemailer:", refreshError.message);
             throw new Error(`Impossible de rafraîchir le jeton d'accès Google: ${refreshError.message}`);
         }
     }
-
 
     const transporter = nodemailer.createTransport({
         service: 'gmail',
@@ -1075,7 +1052,7 @@ async function sendEmailWithNodemailer(mailOptions) {
             clientId: googleOAuthConfig.clientId,
             clientSecret: googleOAuthConfig.clientSecret,
             refreshToken: activeGoogleAuthTokens.refreshToken,
-            accessToken: accessTokenForMail, // Utiliser le jeton potentiellement rafraîchi
+            accessToken: accessTokenForMail, 
             expires: activeGoogleAuthTokens.expiryDate 
         }
     });
@@ -1095,7 +1072,7 @@ app.post('/api/invoice/:invoiceNumber/send-by-email', async (req, res) => {
         const documentHtmlForEmailBody = generateDocumentHtmlForEmail(invoiceData);
         const pdfBuffer = await generatePdfFromHtml(documentHtmlForEmailBody);
         const mailOptions = {
-            from: `"${settings.manager.name || 'Votre Cabinet'}" <${activeGoogleAuthTokens.userEmail}>`, // Utiliser l'email OAuth
+            from: `"${settings.manager.name || 'Votre Cabinet'}" <${activeGoogleAuthTokens.userEmail}>`, 
             to: clientEmail, 
             cc: activeGoogleAuthTokens.userEmail, 
             subject: `Facture ${invoiceNumber} - ${settings.manager.name || 'Votre Cabinet'}`,
@@ -1138,12 +1115,10 @@ app.post('/api/devis/:devisNumber/send-by-email', async (req, res) => {
     }
 });
 
-
 // --- Points d'API pour la Configuration ---
 app.get('/api/settings', async (req, res) => {
     try {
         const settings = await readSettingsJson();
-        // Renvoyer uniquement les informations nécessaires et non sensibles au client
         const clientSafeSettings = {
             manager: {
                 name: settings.manager.name,
@@ -1152,9 +1127,9 @@ app.get('/api/settings', async (req, res) => {
                 address: settings.manager.address,
                 city: settings.manager.city,
                 phone: settings.manager.phone,
-                email: settings.manager.email, // L'email de contact, pas nécessairement l'email OAuth
+                email: settings.manager.email, 
             },
-            googleOAuth: { // Indiquer si le compte est connecté et avec quel email
+            googleOAuth: { 
                 isConnected: !!(settings.googleOAuth && settings.googleOAuth.refreshToken),
                 userEmail: (settings.googleOAuth && settings.googleOAuth.userEmail) ? settings.googleOAuth.userEmail : null,
                 scopes: (settings.googleOAuth && settings.googleOAuth.scopes) ? settings.googleOAuth.scopes : []
@@ -1170,15 +1145,12 @@ app.get('/api/settings', async (req, res) => {
     }
 });
 
-// L'endpoint /api/settings/test-gmail n'est plus nécessaire avec OAuth2
 
 app.post('/api/settings', async (req, res) => {
     try {
         const newSettingsFromClient = req.body;
         let currentSettings = await readSettingsJson(); 
 
-        // Seules les informations non-OAuth sont mises à jour directement ici.
-        // La connexion/déconnexion OAuth se fait via les endpoints dédiés.
         const settingsToSave = {
             ...currentSettings,
             manager: {
@@ -1190,24 +1162,21 @@ app.post('/api/settings', async (req, res) => {
                 city: newSettingsFromClient.manager?.city ?? currentSettings.manager.city,
                 phone: newSettingsFromClient.manager?.phone ?? currentSettings.manager.phone,
                 email: newSettingsFromClient.manager?.email ?? currentSettings.manager.email,
-                // Les champs OAuth (refreshToken, userEmail) sont gérés par le flux OAuth
             },
             tva: newSettingsFromClient.tva ?? currentSettings.tva,
             legal: { ...currentSettings.legal, ...(newSettingsFromClient.legal || {}) },
             googleCalendar: { ...currentSettings.googleCalendar, ...(newSettingsFromClient.googleCalendar || {}) }
         };
         
-        // Ne pas écraser les infos OAuth existantes sauf si explicitement géré par un flux de déconnexion
         settingsToSave.googleOAuth = currentSettings.googleOAuth;
-
 
         await writeSettingsJson(settingsToSave);
 
         const clientSafeResponse = { ...settingsToSave };
          if (clientSafeResponse.manager) {
-            delete clientSafeResponse.manager.encodedGmailAppPassword; // Au cas où
+            delete clientSafeResponse.manager.encodedGmailAppPassword; 
         }
-        if (clientSafeResponse.googleOAuth) { // Ne pas renvoyer le refresh token au client
+        if (clientSafeResponse.googleOAuth) { 
             delete clientSafeResponse.googleOAuth.refreshToken;
         }
 
@@ -1221,8 +1190,7 @@ app.post('/api/settings', async (req, res) => {
 // Démarrer le serveur
 async function startServer() {
     await loadAndInitializeOAuthClient(); 
-    // L'initialisation de calendarHelper se fait maintenant via setAuth après l'init OAuth ou après obtention des tokens
-    // calendarHelper.init(); // L'ancienne initialisation de calendarHelper (service account) n'est plus nécessaire si tout passe par OAuth
+    // L'initialisation de calendarHelper se fait via setAuth dans loadAndInitializeOAuthClient ou le callback OAuth
 
     app.listen(PORT, () => {
         console.log(`Serveur Node.js en cours d'exécution sur http://localhost:${PORT}`);
@@ -1234,8 +1202,8 @@ async function startServer() {
             console.log(`Connecté à Google en tant que: ${activeGoogleAuthTokens.userEmail}`);
         }
         if (!puppeteer) console.warn("ATTENTION: Puppeteer non chargé. Génération PDF désactivée.");
-        // La configuration de calendarHelper (s'il est utilisé) dépend maintenant de l'état d'OAuth
-        if (calendarHelper.isCalendarConfigured()) { // isCalendarConfigured doit vérifier si l'auth OAuth est prête
+        
+        if (calendarHelper.isCalendarConfigured()) { 
              console.log("L'intégration Google Calendar est prête à utiliser l'authentification OAuth.");
         } else {
              console.warn("ATTENTION: L'intégration Google Calendar n'est pas pleinement opérationnelle (problème d'authentification OAuth ou configuration).");
