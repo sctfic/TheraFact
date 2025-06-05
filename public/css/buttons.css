@@ -68,6 +68,15 @@ nav button.active {
 .btn-file-input { display: inline-block; }
 .btn-file-input input[type="file"] { display: none; }
 
+/* Style pour les boutons de suppression avec icône uniquement */
+.btn-icon-delete {
+    font-size: 1rem;      /* Augmente la taille de l'icône (était 0.85rem via .btn-sm) */
+    padding: 0.2rem 0.2rem 0.1rem 0.2rem; /* Réduit le padding pour un bouton plus petit */
+    line-height: 1;         /* Aide à centrer l'icône verticalement */
+    min-width: auto;        /* Annule le min-width de .btn pour que le bouton s'adapte à l'icône */
+    /* margin: 0 2px; /* Ajustez les marges externes si nécessaire pour l'espacement avec d'autres boutons */
+}
+
 /* Style pour le bouton plein écran DANS LA NAV */
 #fullscreenToggleBtn {
     position: absolute; /* Positionnement absolu par rapport à <nav> */

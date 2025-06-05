@@ -1,4 +1,4 @@
- form-row<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
@@ -14,292 +14,291 @@
 </head>
 <body>
     <header><h1>Application de Facturation Thérapie</h1></header>
-    <div id="content-wrapper">
-        <nav>
-            <button id="fullscreenToggleBtn" title="Passer en mode plein écran (F11)">&#x26F6;</button> 
-            <button id="navSeances" class="nav-btn active">Séances</button>
-            <button id="navClients" class="nav-btn">Clients</button>
-            <button id="navTarifs" class="nav-btn">Tarifs</button>
-            <button id="navDashboard" class="nav-btn">Tableau de Bord</button>
-            <button id="navConfig" class="nav-btn">Config</button>
-        </nav>
+    <nav>
+        <button id="fullscreenToggleBtn" title="Passer en mode plein écran (F11)">&#x26F6;</button> 
+        
+        <button id="navSeances" class="nav-btn active">Séances</button>
+        <button id="navClients" class="nav-btn">Clients</button>
+        <button id="navTarifs" class="nav-btn">Tarifs</button>
+        <button id="navDashboard" class="nav-btn">Tableau de Bord</button>
+        <button id="navConfig" class="nav-btn">Config</button>
+    </nav>
 
-        <main>
-            <section id="viewSeances" class="view">
-                <h2>Gestion des Séances</h2>
-                <div class="actions-bar">
-                    <button id="btnAddSeance" class="btn btn-primary">Ajouter une Séance</button>
+    <main>
+        <section id="viewSeances" class="view">
+            <h2>Gestion des Séances</h2>
+            <div class="actions-bar">
+                <button id="btnAddSeance" class="btn btn-primary">Ajouter une Séance</button>
+                </div>
+            <div id="seanceFormContainer" class="form-container hidden">
+                <!-- <h3 id="seanceFormTitle">Ajouter une nouvelle séance</h3> -->
+                <form id="seanceForm" class="form-grid">
+                    <input type="hidden" id="seanceId">
+                    <div class="form-group">
+                        <label for="seanceClientNameInput">Client* :</label>
+                        <input type="text" id="seanceClientNameInput" placeholder="Commencer à taper le nom..." required>
+                        <input type="hidden" id="seanceClientIdInput">
+                        <div id="clientAutocompleteResults" class="autocomplete-results"></div>
                     </div>
-                <div id="seanceFormContainer" class="form-container hidden">
-                    <!-- <h3 id="seanceFormTitle">Ajouter une nouvelle séance</h3> -->
-                    <form id="seanceForm" class="form-grid">
-                        <input type="hidden" id="seanceId">
-                        <div class="form-group">
-                            <label for="seanceClientNameInput">Client* :</label>
-                            <input type="text" id="seanceClientNameInput" placeholder="Commencer à taper le nom..." required>
-                            <input type="hidden" id="seanceClientIdInput">
-                            <div id="clientAutocompleteResults" class="autocomplete-results"></div>
-                        </div>
-                        <div class="form-group">
-                            <label for="seanceDate">Date et Heure* :</label>
-                            <input type="datetime-local" id="seanceDate" required step="900"> </div>
-                        <div class="form-group">
-                            <label for="seanceTarif">Type de Tarif* :</label>
-                            <select id="seanceTarif" required><option value="">Sélectionner un tarif</option></select>
-                        </div>
-                        <div class="form-group">
-                            <label for="seanceMontant">Montant Facturé (€) :</label>
-                            <input type="number" id="seanceMontant" step="0.01" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label for="seanceStatut">Statut* :</label>
-                            <select id="seanceStatut" required>
-                                <option value="APAYER">À Payer</option>
-                                <option value="PAYEE">Payée</option>
-                                <option value="ANNULEE">Annulée</option>
-                                <option value="PLANIFIEE">Planifiée</option>
-                            </select>
-                        </div>
-                        <div class="form-group hidden" id="seanceModePaiementGroup">
-                            <label for="seanceModePaiement">Mode de Paiement :</label>
-                            <select id="seanceModePaiement">
-                                <option value="">Non spécifié</option>
-                                <option value="ESPECE">Espèce</option>
-                                <option value="CHEQUE">Chèque</option>
-                                <option value="CARTE">Carte Bancaire</option>
-                                <option value="VIREMENT">Virement</option>
-                            </select>
-                        </div>
-                        <div class="form-group hidden" id="seanceDatePaiementGroup">
-                            <label for="seanceDatePaiement">Date de Paiement :</label>
-                            <input type="date" id="seanceDatePaiement">
-                        </div>
-                        <div class="form-actions">
-                            <button type="submit" class="btn btn-success">Enregistrer</button>
-                            <button type="button" id="cancelSeanceForm" class="btn btn-secondary">Annuler</button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="filters">
-                    <input type="text" id="searchSeanceClientInput" placeholder="Filtrer par nom client...">
-                    <select id="filterSeanceStatut">
-                        <option value="">Tous les statuts</option>
-                        <option value="APAYER">À Payer</option>
-                        <option value="PAYEE">Payée</option>
-                        <option value="ANNULEE">Annulée</option>
-                        <option value="PLANIFIEE">Planifiée</option>
-                    </select>
-                    <label for="filterSeanceDateStart">Du:</label>
-                    <input type="date" id="filterSeanceDateStart">
-                    <label for="filterSeanceDateEnd">Au:</label>
-                    <input type="date" id="filterSeanceDateEnd">
-                    <button id="clearSeanceFilters" class="btn btn-sm btn-secondary">Effacer Filtres</button>
-                </div>
-
-                <div class="table-container">
-                    <table id="seancesTable">
-                        <thead>
-                            <tr>
-                                <th>Date Séance</th><th>Client</th><th>Type Séance</th><th>Montant</th>
-                                <th>Statut</th><th>Mode Paiement</th><th>Date Paiement</th>
-                                <th class="invoice-cell">Facture/Devis</th>
-                                <th class="actions-cell">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section id="viewClients" class="view active">
-                <h2>Gestion des Clients</h2>
-                <div class="actions-bar">
-                    <button id="btnAddClient" class="btn btn-primary">Ajouter un Client</button>
+                    <div class="form-group">
+                        <label for="seanceDate">Date et Heure* :</label>
+                        <input type="datetime-local" id="seanceDate" required step="900"> </div>
+                    <div class="form-group">
+                        <label for="seanceTarif">Type de Tarif* :</label>
+                        <select id="seanceTarif" required><option value="">Sélectionner un tarif</option></select>
                     </div>
-
-                <div id="clientFormContainer" class="form-container hidden">
-                    <!-- <h3 id="clientFormTitle">Ajouter un nouveau client</h3> -->
-                    <form id="clientForm" class="form-grid">
-                        <input type="hidden" id="clientId">
-                        <div class="form-group"><label for="clientNom">Nom* :</label><input type="text" id="clientNom" required></div>
-                        <div class="form-group"><label for="clientPrenom">Prénom* :</label><input type="text" id="clientPrenom" required></div>
-                        <div class="form-group"><label for="clientTelephone">Téléphone :</label><input type="tel" id="clientTelephone"></div>
-                        <div class="form-group"><label for="clientEmail">Email :</label><input type="email" id="clientEmail"></div>
-                        <div class="form-group"><label for="clientAdresse">Adresse Postale :</label><input id="clientAdresse"></div>
-                        <div class="form-group"><label for="clientVille">Ville :</label><input type="text" id="clientVille"></div>
-                        <div class="form-group">
-                            <label for="clientDefaultTarif">Tarif par défaut :</label>
-                            <select id="clientDefaultTarif"><option value="">Aucun</option></select>
-                        </div>
-                        <div class="form-group form-row"><label for="clientNotes">Notes :</label><textarea id="clientNotes"></textarea></div>
-                        <div class="form-actions">
-                            <button type="submit" class="btn btn-success">Enregistrer</button>
-                            <button type="button" id="cancelClientForm" class="btn btn-secondary">Annuler</button>
-                        </div>
-                    </form>
-                </div>
-                
-                <div class="filters">
-                    <input type="text" id="searchClientInput" placeholder="Rechercher par nom/prénom...">
-                    <select id="filterClientStatut">
-                        <option value="">Tous les statuts</option>
-                        <option value="actif">Actif</option>
-                        <option value="inactif">Inactif</option>
-                    </select>
-                </div>
-
-                <div class="table-container">
-                    <table id="clientsTable">
-                        <thead>
-                            <tr>
-                                <th>Nom</th><th>Prénom</th><th>Téléphone</th><th>Email</th>
-                                <th>Adresse</th><th>Ville</th>
-                                <th class="status-cell">Actif</th><th>Tarif par Défaut</th>
-                                <th>Date Création</th><th class="actions-cell">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section id="viewTarifs" class="view">
-                <h2>Gestion des Tarifs</h2>
-                <div class="actions-bar">
-                    <button id="btnAddTarif" class="btn btn-primary">Ajouter un Tarif</button>
+                    <div class="form-group">
+                        <label for="seanceMontant">Montant Facturé (€) :</label>
+                        <input type="number" id="seanceMontant" step="0.01" readonly>
                     </div>
-                <div id="tarifFormContainer" class="form-container hidden">
-                    <!-- <h3 id="tarifFormTitle">Ajouter un nouveau tarif</h3> -->
-                    <form id="tarifForm" class="form-grid">
-                        <input type="hidden" id="tarifId">
-                        <div class="form-group form-row"><label for="tarifLibelle">Libellé* :</label><input type="text" id="tarifLibelle" required></div>
-                        <div class="form-group"><label for="tarifDuree">Durée (minutes) :</label><input type="number" id="tarifDuree" min="0" placeholder="ex: 60"></div>
-                        <div class="form-group"><label for="tarifMontant">Montant (€)* :</label><input type="number" id="tarifMontant" step="0.01" min="0" required></div>
-                        <div class="form-actions">
-                            <button type="submit" class="btn btn-success">Enregistrer</button>
-                            <button type="button" id="cancelTarifForm" class="btn btn-secondary">Annuler</button>
-                        </div>
-                    </form>
-                </div>
-                <div class="table-container">
-                    <table id="tarifsTable">
-                        <thead><tr><th>Libellé</th><th>Durée (min)</th><th>Montant (€)</th><th class="actions-cell">Actions</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section id="viewDashboard" class="view">
-                <h2>Tableau de Bord</h2>
-                <div class="dashboard-row" style="display: flex; gap: 1.2rem; flex-wrap: wrap;">
-                    <div class="form-container" style="flex:1 1 220px; min-width:220px;">
-                        <h3>Chiffres Clés</h3>
-                        <ul>
-                            <li>Total Clients : <span id="statClientsCount">0</span></li>
-                            <li>Total Séances : <span id="statSeancesCount">0</span></li>
-                            <li>Séances Payées : <span id="statSeancesPayees">0</span></li>
-                        </ul>
-                    </div>
-                    <div class="form-container" style="flex:1 1 220px; min-width:220px;">
-                        <h3>Chiffres d'affaires (€)</h3>
-                        <ul>
-                            <li>Mois Précédent : <span id="caMoisPrecedent">0.00</span> €</li>
-                            <li>Mois en Cours : <span id="caMoisEnCours">0.00</span> €</li>
-                            <li>Année Précédente : <span id="caAnneePrecedente">0.00</span> €</li>
-                            <li>Année en Cours : <span id="caAnneeEnCours">0.00</span> €</li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="form-container">
-                    <h3>Évolution des Séances</h3>
-                    <div class="chart-controls" style="margin-bottom: 1rem;">
-                        <label for="chartPeriodSelector">Agréger par :</label>
-                        <select id="chartPeriodSelector" class="form-input" style="display: inline-block; width: auto; padding: 0.375rem 0.75rem;">
-                            <option value="day">Jour</option>
-                            <option value="week">Semaine</option>
-                            <option value="month" selected>Mois</option>
-                            <option value="quarter">Trimestre</option>
-                            <option value="year">Année</option>
+                    <div class="form-group">
+                        <label for="seanceStatut">Statut* :</label>
+                        <select id="seanceStatut" required>
+                            <option value="APAYER">À Payer</option>
+                            <option value="PAYEE">Payée</option>
+                            <option value="ANNULEE">Annulée</option>
+                            <option value="PLANIFIEE">Planifiée</option>
                         </select>
                     </div>
-                    <div id="sessionsTrendChartContainer" class="chart-container">
-                        <p style="text-align:center; color:#666;">Chargement du graphique...</p>
+                    <div class="form-group hidden" id="seanceModePaiementGroup">
+                        <label for="seanceModePaiement">Mode de Paiement :</label>
+                        <select id="seanceModePaiement">
+                            <option value="">Non spécifié</option>
+                            <option value="ESPECE">Espèce</option>
+                            <option value="CHEQUE">Chèque</option>
+                            <option value="CARTE">Carte Bancaire</option>
+                            <option value="VIREMENT">Virement</option>
+                        </select>
                     </div>
-                </div>
-                </section>
-
-            <section id="viewConfig" class="view">
-                <h2>Configuration de l'Application</h2>
-                <form id="configForm" class="form-container">
-                    <h3>Informations du Gestionnaire</h3>
-                    <div class="form-grid config-grid">
-                        <div class="form-group"><label for="configManagerName">Nom du gestionnaire/cabinet :</label><input type="text" id="configManagerName"></div>
-                        <div class="form-group"><label for="configManagerTitle">Titre/Profession :</label><input type="text" id="configManagerTitle"></div>
-                        <div class="form-group form-row"><label for="configManagerDescription">Description (activité) :</label><textarea id="configManagerDescription" rows="2"></textarea></div>
-                        <div class="form-group"><label for="configManagerPhone">Téléphone :</label><input type="tel" id="configManagerPhone"></div>
-                        <div class="form-group"><label for="configManagerEmailContact">Email de contact (affiché sur factures) :</label><input type="email" id="configManagerEmailContact"></div>
-                        <div class="form-group form-row"><label for="configManagerAddress">Adresse :</label><input type="text" id="configManagerAddress"></div>
-                        <div class="form-group"><label for="configManagerCity">Ville :</label><input type="text" id="configManagerCity"></div>
+                    <div class="form-group hidden" id="seanceDatePaiementGroup">
+                        <label for="seanceDatePaiement">Date de Paiement :</label>
+                        <input type="date" id="seanceDatePaiement">
                     </div>
-
-                    <h3>Connexion Compte Google (pour Email & Calendrier)</h3>
-                    <div id="googleAuthStatusContainer" class="form-container" style="padding: 1rem; border: 1px solid #eee; margin-bottom:1.5rem;">
-                        <p id="googleAuthStatusText">État de la connexion : Vérification...</p>
-                        <div id="googleAuthScopes" style="font-size: 0.9em; margin-top: 0.5rem;"></div>
-                        <button type="button" id="btnConnectGoogle" class="btn btn-primary" style="margin-right: 10px;">Connecter mon compte Google</button>
-                        <button type="button" id="btnDisconnectGoogle" class="btn btn-danger" style="display:none;">Déconnecter mon compte Google</button>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="configGoogleCalendarId">ID du Calendrier Google à utiliser :</label>
-                        <input type="text" id="configGoogleCalendarId" placeholder="primary (pour le calendrier principal)">
-                        <small>Laissez "primary" pour utiliser le calendrier principal du compte Google connecté, ou spécifiez un ID de calendrier personnalisé.</small>
-                    </div>
-
-
-                    <h3>Paramètres Financiers</h3>
-                    <div class="form-grid config-grid">
-                        <div class="form-group"><label for="configTva">Taux de TVA (%) :</label><input type="number" id="configTva" step="0.1" min="0"></div>
-                    </div>
-                    
-                    <h3>Informations Légales</h3>
-                    <div class="form-grid config-grid">
-                        <div class="form-group"><label for="configSiret">SIRET :</label><input type="text" id="configSiret"></div>
-                        <div class="form-group"><label for="configApe">Code APE :</label><input type="text" id="configApe"></div>
-                        <div class="form-group"><label for="configAdeli">N° ADELI :</label><input type="text" id="configAdeli"></div>
-                        <div class="form-group form-row"><label for="configIban">IBAN :</label><input type="text" id="configIban"></div>
-                        <div class="form-group"><label for="configBic">BIC :</label><input type="text" id="configBic"></div>
-                    </div>
-                    
-                    <h3>Mentions pour Factures</h3>
-                     <div class="form-grid config-grid">
-                        <div class="form-group form-row"><label for="configTvaMention">Mention TVA :</label><textarea id="configTvaMention" rows="2"></textarea></div>
-                        <div class="form-group form-row"><label for="configPaymentTerms">Conditions de Paiement :</label><textarea id="configPaymentTerms" rows="3"></textarea></div>
-                        <div class="form-group form-row"><label for="configInsurance">Assurance RCP :</label><textarea id="configInsurance" rows="2"></textarea></div>
-                    </div>
-
-                    <div class="form-group form-row" style="text-align: right; margin-top: 2rem;">
-                        <button type="submit" class="btn btn-success">Enregistrer la Configuration</button>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-success">Enregistrer</button>
+                        <button type="button" id="cancelSeanceForm" class="btn btn-secondary">Annuler</button>
                     </div>
                 </form>
+            </div>
+
+            <div class="filters">
+                <input type="text" id="searchSeanceClientInput" placeholder="Filtrer par nom client...">
+                <select id="filterSeanceStatut">
+                    <option value="">Tous les statuts</option>
+                    <option value="APAYER">À Payer</option>
+                    <option value="PAYEE">Payée</option>
+                    <option value="ANNULEE">Annulée</option>
+                    <option value="PLANIFIEE">Planifiée</option>
+                </select>
+                <label for="filterSeanceDateStart">Du:</label>
+                <input type="date" id="filterSeanceDateStart">
+                <label for="filterSeanceDateEnd">Au:</label>
+                <input type="date" id="filterSeanceDateEnd">
+                <button id="clearSeanceFilters" class="btn btn-sm btn-secondary">Effacer Filtres</button>
+            </div>
+
+            <div class="table-container">
+                <table id="seancesTable">
+                    <thead>
+                        <tr>
+                            <th>Date Séance</th><th>Client</th><th>Type Séance</th><th>Montant</th>
+                            <th>Statut</th><th>Mode Paiement</th><th>Date Paiement</th>
+                            <th class="invoice-cell">Facture/Devis</th>
+                            <th class="actions-cell">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="viewClients" class="view active">
+            <h2>Gestion des Clients</h2>
+            <div class="actions-bar">
+                <button id="btnAddClient" class="btn btn-primary">Ajouter un Client</button>
+                </div>
+
+            <div id="clientFormContainer" class="form-container hidden">
+                <!-- <h3 id="clientFormTitle">Ajouter un nouveau client</h3> -->
+                <form id="clientForm" class="form-grid">
+                    <input type="hidden" id="clientId">
+                    <div class="form-group"><label for="clientNom">Nom* :</label><input type="text" id="clientNom" required></div>
+                    <div class="form-group"><label for="clientPrenom">Prénom* :</label><input type="text" id="clientPrenom" required></div>
+                    <div class="form-group"><label for="clientTelephone">Téléphone :</label><input type="tel" id="clientTelephone"></div>
+                    <div class="form-group"><label for="clientEmail">Email :</label><input type="email" id="clientEmail"></div>
+                    <div class="form-group form-row"><label for="clientAdresse">Adresse Postale :</label><textarea id="clientAdresse"></textarea></div>
+                    <div class="form-group"><label for="clientVille">Ville :</label><input type="text" id="clientVille"></div>
+                    <div class="form-group form-row"> 
+                        <label for="clientDefaultTarif">Tarif par défaut :</label>
+                        <select id="clientDefaultTarif"><option value="">Aucun</option></select>
+                    </div>
+                    <div class="form-group form-row"><label for="clientNotes">Notes :</label><textarea id="clientNotes"></textarea></div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-success">Enregistrer</button>
+                        <button type="button" id="cancelClientForm" class="btn btn-secondary">Annuler</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="filters">
+                <input type="text" id="searchClientInput" placeholder="Rechercher par nom/prénom...">
+                <select id="filterClientStatut">
+                    <option value="">Tous les statuts</option>
+                    <option value="actif">Actif</option>
+                    <option value="inactif">Inactif</option>
+                </select>
+            </div>
+
+            <div class="table-container">
+                <table id="clientsTable">
+                    <thead>
+                        <tr>
+                            <th>Nom</th><th>Prénom</th><th>Téléphone</th><th>Email</th>
+                            <th>Adresse</th><th>Ville</th>
+                            <th class="status-cell">Actif</th><th>Tarif par Défaut</th>
+                            <th>Date Création</th><th class="actions-cell">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="viewTarifs" class="view">
+            <h2>Gestion des Tarifs</h2>
+            <div class="actions-bar">
+                <button id="btnAddTarif" class="btn btn-primary">Ajouter un Tarif</button>
+                </div>
+            <div id="tarifFormContainer" class="form-container hidden">
+                <!-- <h3 id="tarifFormTitle">Ajouter un nouveau tarif</h3> -->
+                <form id="tarifForm" class="form-grid">
+                    <input type="hidden" id="tarifId">
+                    <div class="form-group form-row"><label for="tarifLibelle">Libellé* :</label><input type="text" id="tarifLibelle" required></div>
+                    <div class="form-group"><label for="tarifDuree">Durée (minutes) :</label><input type="number" id="tarifDuree" min="0" placeholder="ex: 60"></div>
+                    <div class="form-group"><label for="tarifMontant">Montant (€)* :</label><input type="number" id="tarifMontant" step="0.01" min="0" required></div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-success">Enregistrer</button>
+                        <button type="button" id="cancelTarifForm" class="btn btn-secondary">Annuler</button>
+                    </div>
+                </form>
+            </div>
+            <div class="table-container">
+                <table id="tarifsTable">
+                    <thead><tr><th>Libellé</th><th>Durée (min)</th><th>Montant (€)</th><th class="actions-cell">Actions</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="viewDashboard" class="view">
+            <h2>Tableau de Bord</h2>
+            <div class="dashboard-row" style="display: flex; gap: 1.2rem; flex-wrap: wrap;">
+                <div class="form-container" style="flex:1 1 220px; min-width:220px;">
+                    <h3>Chiffres Clés</h3>
+                    <ul>
+                        <li>Total Clients : <span id="statClientsCount">0</span></li>
+                        <li>Total Séances : <span id="statSeancesCount">0</span></li>
+                        <li>Séances Payées : <span id="statSeancesPayees">0</span></li>
+                    </ul>
+                </div>
+                <div class="form-container" style="flex:1 1 220px; min-width:220px;">
+                    <h3>Chiffres d'affaires (€)</h3>
+                    <ul>
+                        <li>Mois Précédent : <span id="caMoisPrecedent">0.00</span> €</li>
+                        <li>Mois en Cours : <span id="caMoisEnCours">0.00</span> €</li>
+                        <li>Année Précédente : <span id="caAnneePrecedente">0.00</span> €</li>
+                        <li>Année en Cours : <span id="caAnneeEnCours">0.00</span> €</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="form-container">
+                <h3>Évolution des Séances</h3>
+                <div class="chart-controls" style="margin-bottom: 1rem;">
+                    <label for="chartPeriodSelector">Agréger par :</label>
+                    <select id="chartPeriodSelector" class="form-input" style="display: inline-block; width: auto; padding: 0.375rem 0.75rem;">
+                        <option value="day">Jour</option>
+                        <option value="week">Semaine</option>
+                        <option value="month" selected>Mois</option>
+                        <option value="quarter">Trimestre</option>
+                        <option value="year">Année</option>
+                    </select>
+                </div>
+                <div id="sessionsTrendChartContainer" class="chart-container">
+                    <p style="text-align:center; color:#666;">Chargement du graphique...</p>
+                </div>
+            </div>
             </section>
-        </main>
-    </div>
+
+        <section id="viewConfig" class="view">
+            <h2>Configuration de l'Application</h2>
+            <form id="configForm" class="form-container">
+                <h3>Informations du Gestionnaire</h3>
+                <div class="form-grid config-grid">
+                    <div class="form-group"><label for="configManagerName">Nom du gestionnaire/cabinet :</label><input type="text" id="configManagerName"></div>
+                    <div class="form-group"><label for="configManagerTitle">Titre/Profession :</label><input type="text" id="configManagerTitle"></div>
+                    <div class="form-group form-row"><label for="configManagerDescription">Description (activité) :</label><textarea id="configManagerDescription" rows="2"></textarea></div>
+                    <div class="form-group"><label for="configManagerPhone">Téléphone :</label><input type="tel" id="configManagerPhone"></div>
+                    <div class="form-group"><label for="configManagerEmailContact">Email de contact (affiché sur factures) :</label><input type="email" id="configManagerEmailContact"></div>
+                    <div class="form-group form-row"><label for="configManagerAddress">Adresse :</label><input type="text" id="configManagerAddress"></div>
+                    <div class="form-group"><label for="configManagerCity">Ville :</label><input type="text" id="configManagerCity"></div>
+                </div>
+
+                <h3>Connexion Compte Google (pour Email & Calendrier)</h3>
+                <div id="googleAuthStatusContainer" class="form-container" style="padding: 1rem; border: 1px solid #eee; margin-bottom:1.5rem;">
+                    <p id="googleAuthStatusText">État de la connexion : Vérification...</p>
+                    <div id="googleAuthScopes" style="font-size: 0.9em; margin-top: 0.5rem;"></div>
+                    <button type="button" id="btnConnectGoogle" class="btn btn-primary" style="margin-right: 10px;">Connecter mon compte Google</button>
+                    <button type="button" id="btnDisconnectGoogle" class="btn btn-danger" style="display:none;">Déconnecter mon compte Google</button>
+                </div>
+                
+                <div class="form-group">
+                    <label for="configGoogleCalendarId">ID du Calendrier Google à utiliser :</label>
+                    <input type="text" id="configGoogleCalendarId" placeholder="primary (pour le calendrier principal)">
+                    <small>Laissez "primary" pour utiliser le calendrier principal du compte Google connecté, ou spécifiez un ID de calendrier personnalisé.</small>
+                </div>
+
+
+                <h3>Paramètres Financiers</h3>
+                <div class="form-grid config-grid">
+                    <div class="form-group"><label for="configTva">Taux de TVA (%) :</label><input type="number" id="configTva" step="0.1" min="0"></div>
+                </div>
+                
+                <h3>Informations Légales</h3>
+                <div class="form-grid config-grid">
+                    <div class="form-group"><label for="configSiret">SIRET :</label><input type="text" id="configSiret"></div>
+                    <div class="form-group"><label for="configApe">Code APE :</label><input type="text" id="configApe"></div>
+                    <div class="form-group"><label for="configAdeli">N° ADELI :</label><input type="text" id="configAdeli"></div>
+                    <div class="form-group form-row"><label for="configIban">IBAN :</label><input type="text" id="configIban"></div>
+                    <div class="form-group"><label for="configBic">BIC :</label><input type="text" id="configBic"></div>
+                </div>
+                
+                <h3>Mentions pour Factures</h3>
+                 <div class="form-grid config-grid">
+                    <div class="form-group form-row"><label for="configTvaMention">Mention TVA :</label><textarea id="configTvaMention" rows="2"></textarea></div>
+                    <div class="form-group form-row"><label for="configPaymentTerms">Conditions de Paiement :</label><textarea id="configPaymentTerms" rows="3"></textarea></div>
+                    <div class="form-group form-row"><label for="configInsurance">Assurance RCP :</label><textarea id="configInsurance" rows="2"></textarea></div>
+                </div>
+
+                <div class="form-actions" style="margin-top: 2rem;">
+                    <button type="submit" class="btn btn-success">Enregistrer la Configuration</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <footer><p>&copy; 2025 Votre Application de Thérapie. Tous droits réservés.</p></footer>
 
     <div id="deleteConfirmModal" class="modal">
         <div class="modal-content">
             <div class="modal-header"><h4 id="deleteModalTitle">Confirmation</h4></div>
             <div class="modal-body"><p id="deleteModalMessage">Êtes-vous sûr ?</p></div>
             <div class="modal-footer">
-                <button id="confirmDeleteBtn" class="btn btn-danger">Supprimer</button>
+                <button id="confirmDeleteBtn" class="btn btn-danger btn-icon-delete" title="Supprimer">&#x1F5D1;</button>
                 <button id="cancelDeleteBtn" class="btn btn-secondary">Annuler</button>
             </div>
         </div>
     </div>
     
-    <footer><p>&copy; 2025 Votre Application de Thérapie. Tous droits réservés.</p></footer>
-
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
