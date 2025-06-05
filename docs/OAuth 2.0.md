@@ -1,41 +1,154 @@
-il existe une approche beaucoup plus standard et simplifiée pour l'utilisateur final pour connecter votre application à son compte Google (pour Gmail et Calendar) : OAuth 2.0.
+Guide pour configurer OAuth 2.0 et obtenir Client ID & Client Secret
+Ces étapes sont à réaliser dans la console Google Cloud. Si vous n'avez pas de compte Google Cloud, vous devrez en créer un (cela peut nécessiter une carte de crédit pour la vérification, mais l'utilisation des APIs pour ce type de projet reste généralement dans les limites du niveau gratuit).
 
-Voici comment cela fonctionne et pourquoi c'est plus simple pour le manager :
+Étape 1 : Accéder à la Google Cloud Console
 
-## Ce que vous avez actuellement :
+Ouvrez votre navigateur et allez sur https://console.cloud.google.com/.
 
-Pour Gmail : Vous utilisez l'email du manager et un "Mot de passe d'application". C'est une méthode valide, mais elle demande à l'utilisateur de générer ce mot de passe spécifique et de le copier dans votre application.
-Pour Google Calendar : Vous utilisez un "compte de service" avec un fichier credentials.json. Cela demande à l'utilisateur (ou à vous en tant que développeur) d'aller dans la console Google Cloud, de créer un compte de service, de générer des clés, de télécharger le fichier JSON, de le placer sur le serveur, ET de partager manuellement le calendrier avec l'email du compte de service. C'est assez technique.
+Connectez-vous avec le compte Google que vous souhaitez utiliser pour gérer ce projet (celui du manager ou un compte développeur).
 
-## L'approche OAuth 2.0 (plus simple pour l'utilisateur) :
+Étape 2 : Sélectionner ou Créer un Projet
 
-Principe : Au lieu que l'utilisateur vous donne ses identifiants ou des clés complexes, votre application le redirige vers une page de connexion Google. L'utilisateur se connecte avec son compte Google habituel. Google demande alors à l'utilisateur : "L'application [Nom de votre application] souhaite accéder à [votre calendrier, la permission d'envoyer des emails en votre nom, etc.]. Acceptez-vous ?"
-Consentement de l'utilisateur : Si l'utilisateur accepte, Google donne à votre application une autorisation (un "jeton d'accès") pour effectuer des actions spécifiques en son nom, sans que votre application n'ait jamais besoin de connaître le mot de passe principal de l'utilisateur.
-Un seul flux pour les deux services : Vous pouvez demander les permissions pour Gmail et Calendar en même temps.
+En haut de la page, à côté du logo "Google Cloud Platform", vous verrez le nom du projet actuel. Cliquez dessus.
 
-# Avantages d'OAuth 2.0 pour l'utilisateur :
+Si vous avez déjà un projet que vous souhaitez utiliser, sélectionnez-le.
 
-Simplicité : L'utilisateur clique sur un bouton "Connecter mon compte Google", se connecte si besoin, et approuve les permissions. C'est tout.
-Sécurité perçue et réelle : L'utilisateur ne donne jamais son mot de passe Google principal à votre application. Il fait confiance à Google pour gérer l'authentification.
-Contrôle : L'utilisateur voit exactement quelles permissions votre application demande et peut révoquer l'accès à tout moment depuis les paramètres de son compte Google.
-Pas de credentials.json à gérer pour l'utilisateur : La configuration complexe du compte de service est évitée pour l'utilisateur final.
+Sinon, cliquez sur "Nouveau projet".
 
-# Ce que cela implique pour vous (développeur) :
+Donnez un nom à votre projet (par exemple, "AppFacturationTherapieOAuth").
 
-Configuration initiale dans Google Cloud Console : Vous devez enregistrer votre application auprès de Google et obtenir un "Client ID" et un "Client Secret". Vous devrez aussi définir des "URI de redirection autorisées" (l'adresse où Google renvoie l'utilisateur après qu'il a donné son consentement).
-Modification du code serveur (server.js) :
-Mettre en place le flux OAuth 2.0 :
-Un endpoint pour rediriger l'utilisateur vers la page de consentement Google.
-Un endpoint (l'URI de redirection) pour recevoir le "code d'autorisation" de Google après le consentement.
-Échanger ce code contre un "jeton d'accès" (pour faire les appels API) et un "jeton de rafraîchissement" (pour obtenir de nouveaux jetons d'accès sans redemander à l'utilisateur).
-Stocker de manière sécurisée le jeton de rafraîchissement (par exemple, dans votre settings.json, mais idéalement chiffré ou dans une base de données plus sécurisée si l'application grandit).
-Utiliser la bibliothèque googleapis avec l'authentification OAuth2 pour interagir avec Gmail et Calendar.
-Modification du code client (main.js, index.html) :
-Ajouter un bouton "Connecter mon compte Google" dans la page de configuration.
-Gérer l'affichage de l'état de la connexion.
+Sélectionnez une organisation ou un emplacement si nécessaire (généralement "Aucune organisation" pour les projets personnels).
 
-# En résumé :
+Cliquez sur "Créer".
 
-L'utilisation d'OAuth 2.0 est la méthode recommandée pour permettre à une application tierce d'accéder aux données d'un utilisateur Google. C'est plus de travail initial pour vous en tant que développeur pour mettre en place le flux, mais l'expérience pour l'utilisateur final est grandement simplifiée et plus sécurisée.
+Étape 3 : Activer les APIs Nécessaires (Gmail API et Google Calendar API)
 
-Si vous souhaitez explorer cette voie, je peux vous donner plus de détails sur les modifications à apporter à votre code. Cela remplacerait la nécessité pour l'utilisateur de fournir un mot de passe d'application Gmail et la configuration manuelle du compte de service pour Calendar.
+Une fois votre projet sélectionné, utilisez la barre de recherche en haut et tapez "API et services", puis sélectionnez "Bibliothèque" dans les résultats.
+
+Dans la bibliothèque d'API, recherchez "Gmail API".
+
+Cliquez sur "Gmail API" dans les résultats.
+
+Cliquez sur le bouton "Activer". Si c'est déjà activé, vous n'avez rien à faire ici.
+
+Retournez à la bibliothèque d'API (vous pouvez rechercher "Bibliothèque d'API" à nouveau).
+
+Recherchez "Google Calendar API".
+
+Cliquez sur "Google Calendar API" dans les résultats.
+
+Cliquez sur le bouton "Activer".
+
+Étape 4 : Configurer l'Écran de Consentement OAuth
+
+Avant de créer des identifiants, vous devez configurer ce que les utilisateurs verront lorsqu'ils autoriseront votre application.
+
+Dans le menu de navigation de gauche (vous pouvez l'ouvrir en cliquant sur l'icône hamburger ☰), allez dans "API et services" > "Écran de consentement OAuth".
+
+Type d'utilisateur :
+
+Si vous testez et que vous êtes le seul utilisateur (avec un compte Gmail standard), vous pouvez choisir "Externe" et ajouter votre propre adresse email comme utilisateur testeur plus tard. Cela évite le processus de vérification de l'application pour l'instant.
+
+Si vous prévoyez de distribuer l'application à d'autres utilisateurs, vous devrez choisir "Externe" et éventuellement passer par un processus de vérification Google plus tard si vous utilisez des "scopes" sensibles. Pour l'instant, restons simples.
+
+Cliquez sur "Créer".
+
+Informations sur l'application :
+
+Nom de l'application : Entrez le nom que les utilisateurs verront (par exemple, "AppFacturationTherapie").
+
+Adresse e-mail d'assistance utilisateur : Votre adresse e-mail.
+
+Logo de l'application : Facultatif pour l'instant.
+
+Domaines de l'application :
+
+Domaine autorisé : Si votre application est hébergée (par exemple, fact.lpz.ovh), ajoutez ce domaine (sans http:// ou https://). Si vous testez en local, vous pouvez laisser vide pour l'instant ou ajouter le domaine que vous utiliserez.
+
+Coordonnées du développeur : Entrez votre adresse e-mail.
+
+Cliquez sur "Enregistrer et continuer".
+
+Champs d'application (Scopes) :
+
+Cliquez sur "Ajouter ou supprimer des champs d'application".
+
+Vous devez ajouter les permissions (scopes) dont votre application aura besoin. Pour Gmail (envoi d'emails) et Calendar (gestion des événements) :
+
+Filtrez ou recherchez "Gmail API" et sélectionnez https://www.googleapis.com/auth/gmail.send (pour envoyer des emails). Vous pourriez aussi avoir besoin de https://www.googleapis.com/auth/gmail.modify si vous voulez gérer des brouillons ou lire des emails, mais pour l'envoi seul, gmail.send suffit.
+
+Filtrez ou recherchez "Google Calendar API" et sélectionnez https://www.googleapis.com/auth/calendar ou https://www.googleapis.com/auth/calendar.events (pour lire et écrire des événements). https://www.googleapis.com/auth/calendar donne un accès plus complet.
+
+Cliquez sur "Mettre à jour" après avoir sélectionné les scopes.
+
+Cliquez sur "Enregistrer et continuer".
+
+Utilisateurs tests :
+
+Si vous avez choisi "Externe" à l'étape 2 et que votre application n'est pas encore vérifiée par Google, vous devez ajouter les comptes Google qui seront autorisés à utiliser l'application pendant la phase de test.
+
+Cliquez sur "Ajouter des utilisateurs".
+
+Entrez l'adresse e-mail du compte Google du manager (et la vôtre pour tester). Vous pouvez en ajouter jusqu'à 100.
+
+Cliquez sur "Ajouter".
+
+Cliquez sur "Enregistrer et continuer".
+
+Vous verrez un résumé. Cliquez sur "Retourner au tableau de bord".
+
+Étape 5 : Créer les Identifiants OAuth 2.0 (Client ID et Client Secret)
+
+Dans le menu de navigation de gauche, allez dans "API et services" > "Identifiants".
+
+Cliquez sur "+ CRÉER DES IDENTIFIANTS" en haut de la page.
+
+Sélectionnez "ID client OAuth".
+
+Type d'application : Choisissez "Application Web".
+
+Nom : Donnez un nom à cet ID client (par exemple, "Client Web AppFacturationTherapie").
+
+Restrictions :
+
+Origines JavaScript autorisées :
+
+Si votre application est accessible via http://fact.lpz.ovh:3000 (ou un autre port si vous utilisez le serveur de développement Node.js localement), ajoutez cette origine. Par exemple, http://localhost:3000 si vous testez en local.
+
+Si votre application est hébergée sur http://fact.lpz.ovh (sans port spécifique pour le front-end servi par un serveur web comme Nginx ou Apache), ajoutez http://fact.lpz.ovh.
+
+URI de redirection autorisés : C'est crucial. C'est l'URL sur votre serveur vers laquelle Google redirigera l'utilisateur après qu'il se soit authentifié et ait donné son consentement. Votre serveur devra avoir un endpoint pour gérer cette redirection.
+
+Pour l'instant, nous pouvons définir une URI placeholder que nous mettrons à jour plus tard. Une convention courante est http://VOTRE_DOMAINE/api/auth/google/callback.
+
+Donc, si vous testez en local avec le serveur Node.js sur le port 3000, vous pourriez mettre : http://localhost:3000/api/auth/google/callback.
+
+Si votre application est sur http://fact.lpz.ovh, vous mettriez : http://fact.lpz.ovh/api/auth/google/callback.
+
+Important : Cette URI doit correspondre exactement à celle que votre serveur attendra.
+
+Cliquez sur "Créer".
+
+Étape 6 : Récupérer votre Client ID et Client Secret
+
+Une fois créé, une fenêtre pop-up apparaîtra affichant "Votre ID client" et "Votre code secret client".
+
+Copiez ces deux valeurs et conservez-les précieusement et de manière sécurisée. Vous en aurez besoin dans la configuration de votre serveur (server.js).
+
+ID Client : VOTRE_CLIENT_ID
+
+Code Secret Client : VOTRE_CLIENT_SECRET
+
+Vous pouvez également les retrouver plus tard en cliquant sur le nom de l'ID client que vous venez de créer dans la liste des "ID clients OAuth 2.0" sur la page "Identifiants".
+
+Points importants :
+
+Sécurité du Client Secret : Le Client Secret doit rester secret ! Ne l'exposez jamais côté client (dans votre main.js ou index.html). Il ne doit être utilisé que sur votre serveur.
+
+URI de redirection : L'URI de redirection que vous avez configurée doit correspondre exactement à celle que votre serveur (server.js) utilisera pour recevoir la réponse de Google après l'authentification. Nous allons configurer cet endpoint sur votre serveur dans les prochaines étapes.
+
+Scopes (Champs d'application) : Les scopes que vous avez sélectionnés déterminent à quelles données de l'utilisateur votre application peut demander l'accès. Si vous avez besoin d'accéder à plus de données plus tard, vous devrez ajouter de nouveaux scopes à votre écran de consentement et potentiellement redemander le consentement de l'utilisateur.
+
+Une fois que vous avez votre Client ID et votre Client Secret, nous pourrons passer à l'étape suivante : modifier votre server.js pour implémenter le flux OAuth 2.0.
+
+Dites-moi quand vous aurez ces informations !

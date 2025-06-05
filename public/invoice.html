@@ -54,8 +54,8 @@
     <div class="header">
         <div class="manager-info">
             <strong><span id="manager-name">Nom du Thérapeute</span></strong><br>
-            <span id="manager-title"></span><br> <!-- Ajouté pour le titre du manager -->
-            <span id="manager-description"></span><br> <!-- Ajouté pour la description -->
+            <span id="manager-title"></span><br> 
+            <span id="manager-description"></span><br> 
             <span id="manager-address">Adresse</span><br><span id="manager-city">Ville</span><br>
             Téléphone : <span id="manager-phone"></span><br>Email : <span id="manager-email"></span>
         </div>
@@ -106,7 +106,9 @@
     </div>
 
     <script>
-        const API_BASE_URL_FOR_INVOICE_PAGE = 'http://fact.lpz.ovh:3000'; 
+        // Utiliser l'origine actuelle de la fenêtre pour l'API
+        const APP_ORIGIN_FOR_INVOICE_PAGE = window.location.origin;
+        const API_BASE_URL_FOR_INVOICE_PAGE = `${APP_ORIGIN_FOR_INVOICE_PAGE}:3000/api`; 
 
         function getUrlParameter(name) {
             const urlParams = new URLSearchParams(window.location.search);
@@ -132,7 +134,8 @@
                 return;
             }
             try {
-                const statusResponse = await fetch(`${API_BASE_URL_FOR_INVOICE_PAGE}/api/invoice/${docNumberForStatus}/status`);
+                // Utilisation de la nouvelle constante API_BASE_URL_FOR_INVOICE_PAGE
+                const statusResponse = await fetch(`${API_BASE_URL_FOR_INVOICE_PAGE}/invoice/${docNumberForStatus}/status`);
                 if (!statusResponse.ok) {
                     console.warn(`Statut pour document ${docNumberForStatus} non trouvé ou erreur (${statusResponse.status})`);
                     watermarkElement.style.display = 'none';
@@ -141,10 +144,10 @@
                 const statusData = await statusResponse.json();
                 console.log(`Statut pour document ${docNumberForStatus} chargé:`, statusData);
 
-                let watermarkText = statusData.statusText || ''; // Utilise statusText directement fourni par le backend
+                let watermarkText = statusData.statusText || ''; 
 
                 if (watermarkText) {
-                    watermarkElement.textContent = watermarkText.toUpperCase(); // Assurer que c'est en majuscules
+                    watermarkElement.textContent = watermarkText.toUpperCase(); 
                     watermarkElement.style.display = 'block';
                 } else {
                     watermarkElement.style.display = 'none';
@@ -214,7 +217,7 @@
             if (itemsContainer.rows.length === 0) { 
                 const emptyRow = itemsContainer.insertRow();
                 emptyRow.insertCell().colSpan = 5;
-                emptyRow.textContent = "Aucun service détaillé."; // Correction ici
+                emptyRow.textContent = "Aucun service détaillé.";
                 emptyRow.style.textAlign = "center";
             }
 
@@ -254,11 +257,12 @@
             }
         }
 
-        async function loadInvoiceFromJson(docNumberToLoad) { // Renommé pour clarté
+        async function loadInvoiceFromJson(docNumberToLoad) { 
             try {
                 const isDevis = docNumberToLoad.startsWith('DEV-');
                 const jsonDir = isDevis ? 'Devis' : 'Facts';
-                const jsonPath = `${jsonDir}/${docNumberToLoad}.json`; 
+                // Utilisation de APP_ORIGIN_FOR_INVOICE_PAGE pour le chemin des JSON
+                const jsonPath = `${APP_ORIGIN_FOR_INVOICE_PAGE}/${jsonDir}/${docNumberToLoad}.json`; 
                 console.log(`Chargement du JSON: ${jsonPath}`);
                 const response = await fetch(jsonPath); 
                 if (!response.ok) throw new Error(`Fichier ${docNumberToLoad}.json non trouvé (${response.status}) depuis ${jsonPath}`);
@@ -273,7 +277,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            const docNumberFromUrl = getUrlParameter('invoiceNumber'); // Le paramètre URL reste 'invoiceNumber' pour la compatibilité
+            const docNumberFromUrl = getUrlParameter('invoiceNumber'); 
             if (docNumberFromUrl) {
                 console.log(`Numéro document URL: ${docNumberFromUrl}`);
                 loadInvoiceFromJson(docNumberFromUrl);
@@ -284,7 +288,7 @@
                     client: { name: "Nom Client", address: "Adresse Client", city: "Ville Client" }, 
                     service: [{description: "Exemple de Prestation", quantity:1, unitPrice: 100, Date: new Date().toLocaleDateString('fr-FR')}], 
                     legal: { siret: "Votre SIRET", tvaMention: "TVA non applicable - Art. 293B du CGI", paymentTerms: "Paiement à réception." }, 
-                    invoiceNumber: 'FAC-MODELE', // Pour le modèle, c'est une facture
+                    invoiceNumber: 'FAC-MODELE', 
                     invoiceDate: new Date().toLocaleDateString('fr-FR'), 
                     dueDate: new Date(new Date().setDate(new Date().getDate() + 30)).toLocaleDateString('fr-FR'),
                     tva: 0 
@@ -296,3 +300,4 @@
     </script>
 </body>
 </html>
+
