@@ -419,10 +419,10 @@ async function handleSeanceRowDblClick(event, seanceId) {
     const row = event.currentTarget;
     if (!seanceId) return;
     const seance = state.seances.find(s => s.id_seance === seanceId);
-    if (!seance || seance.invoice_number) { 
-        if (seance && seance.invoice_number) showToast("Modification en ligne impossible (séance facturée).", "warning");
-        return;
-    }
+    // if (!seance || seance.invoice_number) { 
+    //     if (seance && seance.invoice_number) showToast("Modification en ligne impossible (séance facturée).", "warning");
+    //     return;
+    // }
     if (state.currentlyEditingRow && state.currentlyEditingRow !== row) {
         const oldSeanceId = state.currentlyEditingRow.dataset.seanceId;
         const oldSeance = state.seances.find(s => s.id_seance === oldSeanceId);
