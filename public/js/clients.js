@@ -19,7 +19,7 @@ function openClientForm(clientId = null) {
     if (clientId) {
         const client = state.clients.find(c => c.id === clientId);
         if (client) {
-            dom.clientFormTitle.textContent = 'Modifier le client';
+            // dom.clientFormTitle.textContent = 'Modifier le client';
             dom.clientIdInput.value = client.id;
             dom.clientNomInput.value = client.nom;
             dom.clientPrenomInput.value = client.prenom;
@@ -31,7 +31,7 @@ function openClientForm(clientId = null) {
             dom.clientDefaultTarifSelect.value = client.defaultTarifId || "";
         }
     } else {
-        dom.clientFormTitle.textContent = 'Ajouter un nouveau client';
+        // dom.clientFormTitle.textContent = 'Ajouter un nouveau client';
         dom.clientForm.reset(); 
         dom.clientIdInput.value = '';
         dom.clientDefaultTarifSelect.value = ""; 
@@ -104,7 +104,7 @@ function handleClientRowDblClick(clientId) {
     switchView('viewSeances');
     state.setEditingSeanceId(null); 
 
-    dom.seanceFormTitle.textContent = `Ajouter une séance pour ${client.prenom} ${client.nom}`;
+    // dom.seanceFormTitle.textContent = `Ajouter une séance pour ${client.prenom} ${client.nom}`;
     dom.seanceForm.reset();
     dom.seanceIdInput.value = '';
 

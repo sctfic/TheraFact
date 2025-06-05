@@ -45,7 +45,7 @@ nav button.active {
     text-decoration: none;
     display: inline-block;
     text-align: center;
-    min-width: 70px;
+    /* min-width: 70px; */
 }
 .btn-sm {
     padding: 0.2rem 0.6rem;
@@ -67,3 +67,54 @@ nav button.active {
 
 .btn-file-input { display: inline-block; }
 .btn-file-input input[type="file"] { display: none; }
+
+/* Style pour le bouton plein écran DANS LA NAV */
+#fullscreenToggleBtn {
+    position: absolute; /* Positionnement absolu par rapport à <nav> */
+    left: 10px;        /* Distance du bord gauche de la nav bar */
+    top: 50%;          /* Aligné verticalement au centre de la nav bar */
+    transform: translateY(-50%); /* Ajustement fin pour le centrage vertical */
+    background: transparent;
+    border: none;
+    color: white;      /* Même couleur que les autres boutons de navigation */
+    font-size: 1.6rem; /* Taille du symbole */
+    padding: 0.3rem 0.5rem; /* Un padding similaire aux autres nav-btn peut être bien */
+    cursor: pointer;
+    line-height: 1;    /* Assure un bon alignement du symbole */
+    transition: opacity 0.2s;
+    z-index: 10; /* S'assure qu'il est au-dessus des autres éléments de la nav si jamais */
+}
+
+#fullscreenToggleBtn:hover {
+    opacity: 0.7;
+    /* Vous pouvez aussi reprendre le style de survol des nav-btn si vous voulez plus de consistance */
+    /* background-color: #0056b3; */ 
+}
+
+/* Styles pour les boutons de navigation (existants) */
+nav button.nav-btn { /* cibler spécifiquement les .nav-btn pour éviter d'affecter fullscreenToggleBtn */
+    background-color: transparent;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    margin: 0 0.2rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s, box-shadow 0.2s, border-bottom 0.2s;
+    min-width: 90px;
+    border-bottom: 3px solid transparent; 
+}
+
+nav button.nav-btn:hover {
+    background-color: #0056b3; 
+    color: #fff;
+}
+
+nav button.nav-btn.active {
+    background-color: #0056b3; 
+    color: #ffffff; 
+    font-weight: bold; 
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); 
+    border-bottom: 3px solid #00c6ff; 
+}

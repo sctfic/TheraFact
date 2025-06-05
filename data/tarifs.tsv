@@ -1,5 +1,4 @@
-id	libelle	montant
-TARIF_STANDARD	Standard	65.00
-TARIF_LOWCOST	LowCost	45.00
-TARIF_ATELIER1H	Atelier 1h	110.00
-TARIF_SYMBOLIQUE	symbolique	1.00
+id	libelle	montant	duree
+TARIF_STANDARD	Standard	60.00	60
+TARIF_LOWCOST	LowCost	45.00	45
+TARIF_ATELIER	Atelier	120.00	180
