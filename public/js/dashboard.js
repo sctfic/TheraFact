@@ -96,11 +96,13 @@ let chartState = {
     startIndex: 0,
     visibleCount: 25,
     svg: null,
+    chartContent: null,
     x: null,
     yCounts: null,
     yAmounts: null,
     tooltip: null
 };
+const margin = {top: 10, right: 60, bottom: 90, left: 40};
 
 function renderSessionsTrendChart(chartData) {
     if (!dom.sessionsTrendChartContainer) return;
@@ -128,7 +130,6 @@ function renderSessionsTrendChart(chartData) {
         return; 
     }
 
-    const margin = {top: 30, right: 70, bottom: 110, left: 60};
     const width = Math.max(0, containerWidth - margin.left - margin.right);
     const height = Math.max(0, 400 - margin.top - margin.bottom);
 
@@ -161,6 +162,21 @@ function renderSessionsTrendChart(chartData) {
             .style("font-size", "12px")
             .style("z-index", "10");
     }
+
+    // Créer le clipping path
+    svgElement.append("defs")
+        .append("clipPath")
+            .attr("id", "chart-clip")
+        .append("rect")
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", width)
+            .attr("height", height);
+
+    // Créer le groupe conteneur avec clipping
+    chartState.chartContent = chartState.svg.append("g")
+        .attr("class", "chart-content")
+        .attr("clip-path", "url(#chart-clip)");
 
     // Initialiser les échelles
     const periods = chartState.visibleData.map(d => d.periodLabel);
@@ -215,14 +231,13 @@ function handleMouseWheel(event) {
 
 function drawChartElements(width, height, margin, initialRender = false) {
     const svg = chartState.svg;
+    const content = chartState.chartContent; // Utiliser le groupe conteneur
     const data = chartState.visibleData;
     
     // Supprimer les anciens éléments graphiques
     svg.selectAll(".axis").remove();
-    svg.selectAll(".bar-stack").remove();
-    svg.selectAll(".line").remove();
-    svg.selectAll(".dot").remove();
     svg.selectAll(".legend-container").remove();
+    content.selectAll("*").remove();
 
     // Axe X
     const xAxisGroup = svg.append("g")
@@ -256,7 +271,7 @@ function drawChartElements(width, height, margin, initialRender = false) {
         .append("text")
             .attr("fill", "#000")
             .attr("transform", "rotate(-90)")
-            .attr("y", -margin.left + 15)
+            .attr("y", -margin.left + 47)
             .attr("x", -height/2)
             .attr("dy", "0.71em")
             .attr("text-anchor", "middle")
@@ -270,7 +285,7 @@ function drawChartElements(width, height, margin, initialRender = false) {
         .append("text")
             .attr("fill", "#000")
             .attr("transform", "rotate(-90)")
-            .attr("y", margin.right - 25)
+            .attr("y", margin.right - 58)
             .attr("x", -height/2)
             .attr("dy", "-0.71em")
             .attr("text-anchor", "middle")
@@ -282,7 +297,7 @@ function drawChartElements(width, height, margin, initialRender = false) {
     const stackedData = stack(data);
     const colorScale = d3.scaleOrdinal().domain(stackKeys).range(['#17a2b8', '#ffc107', '#28a745', '#dc3545']); 
 
-    const barGroups = svg.append("g")
+    const barGroups = content.append("g")
         .selectAll("g")
         .data(stackedData)
         .enter().append("g")
@@ -311,19 +326,19 @@ function drawChartElements(width, height, margin, initialRender = false) {
                     .style("top", (event.pageY - 28) + "px");
 
                 // Mise en évidence de la pile
-                svg.selectAll(".bar-stack rect").style("opacity", 0.3);
-                svg.selectAll(`.bar-stack-${key} rect`)
+                content.selectAll(".bar-stack rect").style("opacity", 0.3);
+                content.selectAll(`.bar-stack-${key} rect`)
                     .filter(barData => barData.data.periodLabel === d.data.periodLabel)
                     .style("opacity", 1);
             })
             .on("mouseout", function() {
                 chartState.tooltip.transition().duration(500).style("opacity", 0);
-                svg.selectAll(".bar-stack rect").style("opacity", 1);
+                content.selectAll(".bar-stack rect").style("opacity", 1);
             })
             .transition()
                 .duration(initialRender ? 800 : 400)
                 .ease(d3.easeCubicOut)
-                .attr("y", d => chartState.yCounts(d[1]))
+                .attr("y", d => chartState.yCounts(d[1])) // au niveau de l'axe X
                 .attr("height", d => Math.max(0, chartState.yCounts(d[0]) - chartState.yCounts(d[1])));
 
     // Ligne des montants payés avec animation
@@ -333,7 +348,7 @@ function drawChartElements(width, height, margin, initialRender = false) {
         .defined(d => d.paidAmount !== undefined && d.paidAmount !== null);
     
     // Préparation du chemin (invisible initialement)
-    const path = svg.append("path")
+    const path = content.append("path")
         .datum(data.map(d => ({...d, paidAmount: d.paidAmount || 0})))
         .attr("class", "line paid-amount-line")
         .attr("fill", "none")
@@ -355,7 +370,7 @@ function drawChartElements(width, height, margin, initialRender = false) {
         .attr("stroke-dashoffset", 0);
 
     // Points sur la ligne avec animation
-    const dots = svg.selectAll(".dot-paid-amount")
+    const dots = content.selectAll(".dot-paid-amount")
         .data(data.filter(d => d.paidAmount > 0))
         .enter().append("circle")
             .attr("class", "dot dot-paid-amount")
@@ -394,7 +409,7 @@ function drawChartElements(width, height, margin, initialRender = false) {
 
     const legendContainer = svg.append("g")
         .attr("class", "legend-container")
-        .attr("transform", `translate(0, ${height + margin.bottom - 45})`);
+        .attr("transform", `translate(0, ${height + margin.bottom - 25})`);
 
     const legend = legendContainer.selectAll(".legend-item")
         .data(legendData)
@@ -422,7 +437,6 @@ function redrawChart() {
     const container = dom.sessionsTrendChartContainer;
     if (!container || !container.firstChild) return;
     
-    const margin = {top: 30, right: 70, bottom: 110, left: 60};
     const width = container.clientWidth - margin.left - margin.right;
     const height = 400 - margin.top - margin.bottom;
     
