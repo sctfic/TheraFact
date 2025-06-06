@@ -89,9 +89,374 @@ function prepareChartData(allSeances, periodType) {
     });
     return Object.values(aggregatedData).sort((a, b) => a.periodDate - b.periodDate);
 }
+// État global du graphique
+let chartState = {
+    allData: [],
+    visibleData: [],
+    startIndex: 0,
+    visibleCount: 25,
+    svg: null,
+    x: null,
+    yCounts: null,
+    yAmounts: null,
+    tooltip: null
+};
 
 function renderSessionsTrendChart(chartData) {
+    if (!dom.sessionsTrendChartContainer) return;
+    
+    // Stocker toutes les données triées par période (plus récent en dernier)
+    chartState.allData = [...chartData].sort((a, b) => 
+        a.periodLabel.localeCompare(b.periodLabel)
+    );
+    
+    // Initialiser l'index de départ (25 dernières périodes)
+    chartState.startIndex = Math.max(0, chartState.allData.length - chartState.visibleCount);
+    updateVisibleData();
+    
+    // Vider le conteneur
+    dom.sessionsTrendChartContainer.innerHTML = '';
+    
+    if (!chartData || chartData.length === 0) {
+        dom.sessionsTrendChartContainer.innerHTML = "<p style='text-align:center; padding-top: 20px; color:#666;'>Pas de données pour afficher le graphique.</p>"; 
+        return;
+    }
 
+    const containerWidth = dom.sessionsTrendChartContainer.clientWidth;
+    if (containerWidth === 0) {
+        setTimeout(() => renderSessionsTrendChart(chartData), 100); 
+        return; 
+    }
+
+    const margin = {top: 30, right: 70, bottom: 110, left: 60};
+    const width = Math.max(0, containerWidth - margin.left - margin.right);
+    const height = Math.max(0, 400 - margin.top - margin.bottom);
+
+    if (width <= 0 || height <= 0) { 
+        dom.sessionsTrendChartContainer.innerHTML = "<p style='text-align:center; padding-top: 20px; color:#666;'>Espace insuffisant pour le graphique.</p>"; 
+        return; 
+    }
+
+    // Créer l'élément SVG principal
+    const svgElement = d3.select(dom.sessionsTrendChartContainer)
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom);
+    
+    chartState.svg = svgElement.append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    // Créer le tooltip (une seule fois)
+    if (!chartState.tooltip) {
+        chartState.tooltip = d3.select("body").append("div")
+            .attr("class", "chart-tooltip")
+            .style("opacity", 0)
+            .style("position", "absolute")
+            .style("pointer-events", "none")
+            .style("background", "rgba(255, 255, 255, 0.9)")
+            .style("padding", "8px")
+            .style("border-radius", "4px")
+            .style("box-shadow", "0 2px 10px rgba(0,0,0,0.1)")
+            .style("border", "1px solid #ddd")
+            .style("font-size", "12px")
+            .style("z-index", "10");
+    }
+
+    // Initialiser les échelles
+    const periods = chartState.visibleData.map(d => d.periodLabel);
+    chartState.x = d3.scaleBand()
+        .domain(periods)
+        .range([0, width])
+        .padding(0.2);
+
+    const yCountsMax = d3.max(chartState.visibleData, d => 
+        d.cancelledSessions + d.paidSessions + d.toPaySessions + d.plannedSessions
+    ) || 1;
+    
+    chartState.yCounts = d3.scaleLinear()
+        .domain([0, yCountsMax])
+        .nice()
+        .range([height, 0]);
+
+    const yAmountsMax = d3.max(chartState.visibleData, d => d.paidAmount) || 1; 
+    chartState.yAmounts = d3.scaleLinear()
+        .domain([0, yAmountsMax])
+        .nice()
+        .range([height, 0]);
+
+    // Dessiner le graphique initial avec animation
+    drawChartElements(width, height, margin, true);
+
+    // Ajouter le défilement à la molette
+    dom.sessionsTrendChartContainer.addEventListener('wheel', handleMouseWheel);
+}
+
+function updateVisibleData() {
+    chartState.visibleData = chartState.allData.slice(
+        chartState.startIndex,
+        chartState.startIndex + chartState.visibleCount
+    );
+}
+
+function handleMouseWheel(event) {
+    event.preventDefault();
+    
+    // Déterminer la direction du défilement
+    const delta = Math.sign(event.deltaY);
+    const newIndex = chartState.startIndex + delta;
+    
+    // Vérifier les limites
+    if (newIndex >= 0 && newIndex <= chartState.allData.length - chartState.visibleCount) {
+        chartState.startIndex = newIndex;
+        updateVisibleData();
+        redrawChart();
+    }
+}
+
+function drawChartElements(width, height, margin, initialRender = false) {
+    const svg = chartState.svg;
+    const data = chartState.visibleData;
+    
+    // Supprimer les anciens éléments graphiques
+    svg.selectAll(".axis").remove();
+    svg.selectAll(".bar-stack").remove();
+    svg.selectAll(".line").remove();
+    svg.selectAll(".dot").remove();
+    svg.selectAll(".legend-container").remove();
+
+    // Axe X
+    const xAxisGroup = svg.append("g")
+        .attr("class", "axis axis--x")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(chartState.x));
+
+    // Gestion des étiquettes surchargées
+    const allTicks = xAxisGroup.selectAll(".tick text");
+    const totalTicks = allTicks.size();
+    const pixelsPerTick = width / totalTicks;
+    const minPixelsPerTick = 80;
+
+    if (pixelsPerTick < minPixelsPerTick) {
+        const nth = Math.ceil(minPixelsPerTick / pixelsPerTick);
+        allTicks.each(function(d, i) {
+            if (i % nth !== 0) d3.select(this).style("display", "none");
+        });
+    }
+
+    xAxisGroup.selectAll("text")
+        .style("text-anchor", "end")
+        .attr("dx", "-.8em")
+        .attr("dy", ".15em")
+        .attr("transform", "rotate(-45)");
+
+    // Axe Y (Comptages)
+    svg.append("g")
+        .attr("class", "axis axis--y-counts")
+        .call(d3.axisLeft(chartState.yCounts).ticks(5))
+        .append("text")
+            .attr("fill", "#000")
+            .attr("transform", "rotate(-90)")
+            .attr("y", -margin.left + 15)
+            .attr("x", -height/2)
+            .attr("dy", "0.71em")
+            .attr("text-anchor", "middle")
+            .text("Nombre de Séances");
+
+    // Axe Y (Montants)
+    svg.append("g")
+        .attr("class", "axis axis--y-amounts")
+        .attr("transform", `translate(${width},0)`)
+        .call(d3.axisRight(chartState.yAmounts).ticks(5))
+        .append("text")
+            .attr("fill", "#000")
+            .attr("transform", "rotate(-90)")
+            .attr("y", margin.right - 25)
+            .attr("x", -height/2)
+            .attr("dy", "-0.71em")
+            .attr("text-anchor", "middle")
+            .text("Montant Payé (€)");
+
+    // Barres empilées avec animation
+    const stackKeys = ['plannedSessions', 'toPaySessions', 'paidSessions', 'cancelledSessions']; 
+    const stack = d3.stack().keys(stackKeys);
+    const stackedData = stack(data);
+    const colorScale = d3.scaleOrdinal().domain(stackKeys).range(['#17a2b8', '#ffc107', '#28a745', '#dc3545']); 
+
+    const barGroups = svg.append("g")
+        .selectAll("g")
+        .data(stackedData)
+        .enter().append("g")
+            .attr("fill", d => colorScale(d.key))
+            .attr("class", d => `bar-stack bar-stack-${d.key}`);
+
+    barGroups.selectAll("rect")
+        .data(d => d)
+        .enter().append("rect")
+            .attr("x", d => chartState.x(d.data.periodLabel))
+            .attr("width", chartState.x.bandwidth())
+            .attr("y", height) // Commence en bas pour l'animation
+            .attr("height", 0)
+            .on("mouseover", function(event, d) {
+                const key = d3.select(this.parentNode).datum().key;
+                let count, label;
+                
+                if (key === 'cancelledSessions') { count = d.data.cancelledSessions; label = 'Annulées'; }
+                else if (key === 'paidSessions') { count = d.data.paidSessions; label = 'Payées'; }
+                else if (key === 'toPaySessions') { count = d.data.toPaySessions; label = 'À Payer'; }
+                else if (key === 'plannedSessions') { count = d.data.plannedSessions; label = 'Planifiées'; }
+                
+                chartState.tooltip.transition().duration(200).style("opacity", .9);
+                chartState.tooltip.html(`<strong>${d.data.periodLabel}</strong><br/>Séances ${label}: ${count}`)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 28) + "px");
+
+                // Mise en évidence de la pile
+                svg.selectAll(".bar-stack rect").style("opacity", 0.3);
+                svg.selectAll(`.bar-stack-${key} rect`)
+                    .filter(barData => barData.data.periodLabel === d.data.periodLabel)
+                    .style("opacity", 1);
+            })
+            .on("mouseout", function() {
+                chartState.tooltip.transition().duration(500).style("opacity", 0);
+                svg.selectAll(".bar-stack rect").style("opacity", 1);
+            })
+            .transition()
+                .duration(initialRender ? 800 : 400)
+                .ease(d3.easeCubicOut)
+                .attr("y", d => chartState.yCounts(d[1]))
+                .attr("height", d => Math.max(0, chartState.yCounts(d[0]) - chartState.yCounts(d[1])));
+
+    // Ligne des montants payés avec animation
+    const linePaidAmount = d3.line()
+        .x(d => chartState.x(d.periodLabel) + chartState.x.bandwidth() / 2)
+        .y(d => chartState.yAmounts(d.paidAmount))
+        .defined(d => d.paidAmount !== undefined && d.paidAmount !== null);
+    
+    // Préparation du chemin (invisible initialement)
+    const path = svg.append("path")
+        .datum(data.map(d => ({...d, paidAmount: d.paidAmount || 0})))
+        .attr("class", "line paid-amount-line")
+        .attr("fill", "none")
+        .attr("stroke", "#007bff")
+        .attr("stroke-width", 2.5)
+        .attr("d", linePaidAmount)
+        .attr("stroke-dasharray", function() {
+            const length = this.getTotalLength();
+            return length + " " + length;
+        })
+        .attr("stroke-dashoffset", function() {
+            return this.getTotalLength();
+        });
+    
+    // Animation de la ligne
+    path.transition()
+        .duration(initialRender ? 1000 : 600)
+        .ease(d3.easeCubicInOut)
+        .attr("stroke-dashoffset", 0);
+
+    // Points sur la ligne avec animation
+    const dots = svg.selectAll(".dot-paid-amount")
+        .data(data.filter(d => d.paidAmount > 0))
+        .enter().append("circle")
+            .attr("class", "dot dot-paid-amount")
+            .attr("cx", d => chartState.x(d.periodLabel) + chartState.x.bandwidth() / 2)
+            .attr("cy", height) // Commence en bas
+            .attr("r", 0) // Taille initiale nulle
+            .attr("fill", "#007bff")
+            .attr("stroke", "white")
+            .attr("stroke-width", 1.5)
+            .on("mouseover", (event, d) => {
+                chartState.tooltip.transition().duration(200).style("opacity", .9);
+                chartState.tooltip.html(`<strong>${d.periodLabel}</strong><br/>Montant Payé: ${d.paidAmount.toFixed(2)}€`)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 28) + "px");
+            })
+            .on("mouseout", () => {
+                chartState.tooltip.transition().duration(500).style("opacity", 0);
+            });
+    
+    // Animation des points
+    dots.transition()
+        .delay((d, i) => initialRender ? i * 50 : i * 20)
+        .duration(400)
+        .ease(d3.easeBackOut)
+        .attr("cy", d => chartState.yAmounts(d.paidAmount))
+        .attr("r", 5);
+    
+    // Légende
+    const legendData = [
+        { color: '#17a2b8', text: "Planifiées" },
+        { color: '#ffc107', text: "À Payer" },
+        { color: '#28a745', text: "Payées" },
+        { color: '#dc3545', text: "Annulées" },
+        { color: "#007bff", text: "Montant Payé (€) (Ligne)" }
+    ];
+
+    const legendContainer = svg.append("g")
+        .attr("class", "legend-container")
+        .attr("transform", `translate(0, ${height + margin.bottom - 45})`);
+
+    const legend = legendContainer.selectAll(".legend-item")
+        .data(legendData)
+        .enter().append("g")
+            .attr("class", "legend-item")
+            .attr("transform", (d, i) => `translate(${i * 130}, 0)`);
+
+    legend.append("rect")
+        .attr("x", 0)
+        .attr("y", 0) 
+        .attr("width", 18)
+        .attr("height", 18)
+        .style("fill", d => d.color);
+
+    legend.append("text")
+        .attr("x", 24)
+        .attr("y", 9)
+        .attr("dy", ".35em")
+        .style("text-anchor", "start")
+        .style("font-size", "10px")
+        .text(d => d.text);
+}
+
+function redrawChart() {
+    const container = dom.sessionsTrendChartContainer;
+    if (!container || !container.firstChild) return;
+    
+    const margin = {top: 30, right: 70, bottom: 110, left: 60};
+    const width = container.clientWidth - margin.left - margin.right;
+    const height = 400 - margin.top - margin.bottom;
+    
+    // Mettre à jour les domaines avec animation
+    const transitionDuration = 600;
+    const xUpdate = d3.transition().duration(transitionDuration).ease(d3.easeCubicInOut);
+    
+    // Mise à jour des domaines
+    chartState.x.domain(chartState.visibleData.map(d => d.periodLabel));
+    
+    const yCountsMax = d3.max(chartState.visibleData, d => 
+        d.cancelledSessions + d.paidSessions + d.toPaySessions + d.plannedSessions
+    ) || 1;
+    chartState.yCounts.domain([0, yCountsMax]).nice();
+    
+    const yAmountsMax = d3.max(chartState.visibleData, d => d.paidAmount) || 1;
+    chartState.yAmounts.domain([0, yAmountsMax]).nice();
+    
+    // Animation des axes
+    chartState.svg.selectAll(".axis--x")
+        .transition(xUpdate)
+        .call(d3.axisBottom(chartState.x));
+    
+    chartState.svg.selectAll(".axis--y-counts")
+        .transition(xUpdate)
+        .call(d3.axisLeft(chartState.yCounts).ticks(5));
+    
+    chartState.svg.selectAll(".axis--y-amounts")
+        .transition(xUpdate)
+        .call(d3.axisRight(chartState.yAmounts).ticks(5));
+    
+    // Redessiner les éléments avec animation
+    drawChartElements(width, height, margin);
+}
 
 
 export function updateDashboardStats() {
