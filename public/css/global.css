@@ -78,20 +78,33 @@ footer.hidden-animated {
 }
 
 
-/* Supprimer les styles pour #content-wrapper et #content-wrapper.content-expanded-overlay */
-/*
-#content-wrapper { ... }
-#content-wrapper.content-expanded-overlay { ... }
-*/
-
 nav {
     background-color: #343a40; 
     padding: 0.3rem 0; 
-    display: flex;
-    justify-content: center; 
+    display: flex; /* Ensures nav items are in a row */
+    align-items: center; /* Vertically aligns items in the nav */
+    justify-content: space-between; /* This will be effectively overridden by spacers for the central block */
     box-shadow: 0 2px 4px rgba(0,0,0,0.07);
-    position: relative; 
+    position: relative; /* Crucial for absolute positioning of fullscreenToggleBtn */
     flex-shrink: 0; 
+    width: 100%; /* Ensure nav takes full width */
+    box-sizing: border-box; /* Include padding in width calculation */
+}
+
+/* New styles for spacers */
+.nav-spacer-left {
+    min-width: 40px; /* Minimum width for left spacer */
+}
+.nav-spacer-left,
+.nav-spacer-right {
+    flex-grow: 1;  /* Allows spacers to take up available space */
+    flex-basis: 0; /* Distributes space based on flex-grow */
+    /* border: 1px dashed yellow; /* For debugging layout - remove later */
+}
+
+/* Ensure the button group doesn't get squashed by spacers if content is minimal */
+nav button.nav-btn {
+    flex-shrink: 0; /* Prevent nav buttons from shrinking if space is tight */
 }
 
 main {

@@ -17,8 +17,6 @@ export function switchView(viewId) {
     const currentNavButton = document.getElementById(navButtonId);
     if (currentNavButton) currentNavButton.classList.add('active');
 
-    console.log(`Changement de vue vers : ${viewId}`);
-
     window.location.hash = viewId;
 
     // AJOUT : Gestion de la classe pour la pleine largeur de main

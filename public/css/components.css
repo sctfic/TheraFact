@@ -121,3 +121,33 @@
 #googleAuthScopes li {
     margin-bottom: 0.2rem;
 }
+@media (max-width: 768px) {
+    .dashboard-row li {
+        font-size: 0.9em; /* Ajustement de la taille de police pour les petits écrans */
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard-row li {
+        font-size: 0.8em; /* Ajustement de la taille de police pour les petits écrans */
+    }
+}
+
+
+
+
+.chart-container {
+    width: 100%;
+    min-height: 260px;
+    border: 1px solid #eee;
+    background-color: #f9f9f9;
+    position: relative;
+    margin-bottom: 1rem;
+    overflow: hidden; /* Cache tout débordement par défaut */
+}
+
+/* Nouvelle classe pour activer le défilement */
+.chart-container.scrollable {
+    overflow-x: auto;  /* Active le défilement horizontal UNIQUEMENT si cette classe est présente */
+    scroll-behavior: smooth; /* Optionnel: pour un défilement plus fluide */
+}

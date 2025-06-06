@@ -222,7 +222,18 @@ export function renderSeancesTable() {
     filteredAndSortedSeances.forEach(seance => {
         const row = dom.seancesTableBody.insertRow();
         row.dataset.seanceId = seance.id_seance;
-        row.insertCell().textContent = seance.date_heure_seance ? new Date(seance.date_heure_seance).toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '-';
+        const dateCell = row.insertCell();
+        if (seance.date_heure_seance) {
+            const d = new Date(seance.date_heure_seance);
+            const datePart = d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'});
+            const timePart = d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+            
+            // Simple approach: Date and Time on separate "lines" using <br>
+            // This requires the cell to render HTML.
+            dateCell.innerHTML = `${datePart}<br>${timePart}`;
+        } else {
+            dateCell.textContent = '-';
+        }
         const client = state.clients.find(c => c.id === seance.id_client);
         row.insertCell().textContent = client ? `${client.prenom} ${client.nom}` : 'Client inconnu';
         const tarif = state.tarifs.find(t => t.id === seance.id_tarif);
@@ -260,7 +271,7 @@ export function renderSeancesTable() {
                 devisLink.style.marginRight = '5px';
                 invoiceCell.appendChild(devisLink);
                 const emailDevisBtn = document.createElement('button');
-                emailDevisBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer devis" style="height: 1.3em; vertical-align: middle;">';
+                emailDevisBtn.innerHTML = '<img class="brightness" src="pictures/sendEmail.png" alt="Envoyer devis" style="height: 1.3em; vertical-align: middle;">';
                 emailDevisBtn.classList.add('btn', 'btn-primary', 'btn-sm');
                 emailDevisBtn.title = 'Envoyer le devis par email';
                 emailDevisBtn.style.padding = '0.1rem 0.2rem';
@@ -289,7 +300,7 @@ export function renderSeancesTable() {
                 invoiceLink.style.marginRight = '5px';
                 invoiceCell.appendChild(invoiceLink);
                 const emailBtn = document.createElement('button');
-                emailBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer facture" style="height: 1.3em; vertical-align: middle;">';
+                emailBtn.innerHTML = '<img class="brightness" src="pictures/sendEmail.png" alt="Envoyer facture" style="height: 1.3em; vertical-align: middle;">';
                 emailBtn.classList.add('btn', 'btn-success', 'btn-sm');
                 emailBtn.title = 'Envoyer la facture par email';
                 emailBtn.style.padding = '0.1rem 0.2rem';
@@ -613,14 +624,15 @@ function revertRowToDisplayMode(row, seance) {
                 devisLink.textContent = seance.devis_number; devisLink.target = '_blank'; devisLink.style.marginRight = '5px';
                 invoiceCell.appendChild(devisLink);
                 const emailDevisBtn = document.createElement('button');
-                emailDevisBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer devis" style="height: 1.3em; vertical-align: middle;">';
+                emailDevisBtn.innerHTML = '<img class="brightness" src="pictures/sendEmail.png" alt="Envoyer devis" style="height: 1.3em; vertical-align: middle;">';
                 emailDevisBtn.classList.add('btn', 'btn-primary', 'btn-sm');
                 emailDevisBtn.title = 'Envoyer le devis par email'; emailDevisBtn.style.padding = '0.1rem 0.2rem';
                 emailDevisBtn.onclick = (e) => { e.stopPropagation(); handleSendDevisByEmail(seance.id_seance, seance.devis_number, client ? client.email : null);};
                 invoiceCell.appendChild(emailDevisBtn);
             } else if (!seance.invoice_number) {
                 const btnGenererDevis = document.createElement('button');
-                btnGenererDevis.textContent = 'Devis'; btnGenererDevis.classList.add('btn', 'btn-primary', 'btn-sm');
+                btnGenererDevis.textContent = 'Devis';
+                btnGenererDevis.classList.add('btn', 'btn-primary', 'btn-sm');
                 btnGenererDevis.onclick = (e) => { e.stopPropagation(); handleGenerateDevis(seance.id_seance); };
                 invoiceCell.appendChild(btnGenererDevis);
             } else { 
@@ -636,7 +648,7 @@ function revertRowToDisplayMode(row, seance) {
                 invoiceLink.textContent = seance.invoice_number; invoiceLink.target = '_blank'; invoiceLink.style.marginRight = '5px';
                 invoiceCell.appendChild(invoiceLink);
                 const emailBtn = document.createElement('button');
-                emailBtn.innerHTML = '<img src="sendEmail.png" alt="Envoyer facture" style="height: 1.3em; vertical-align: middle;">';
+                emailBtn.innerHTML = '<img class="brightness" src="pictures/sendEmail.png" alt="Envoyer facture" style="height: 1.3em; vertical-align: middle;">';
                 emailBtn.classList.add('btn', 'btn-success', 'btn-sm');
                 emailBtn.title = 'Envoyer la facture par email'; emailBtn.style.padding = '0.1rem 0.2rem';
                 emailBtn.onclick = (e) => { e.stopPropagation(); handleSendInvoiceByEmail(seance.id_seance, seance.invoice_number, client ? client.email : null);};
