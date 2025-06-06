@@ -186,10 +186,20 @@ export function renderClientsTable() {
         const row = dom.clientsTableBody.insertRow();
         row.insertCell().textContent = client.nom;
         row.insertCell().textContent = client.prenom;
-        row.insertCell().textContent = client.telephone || '-';
         row.insertCell().textContent = client.email || '-';
         row.insertCell().textContent = client.adresse || '-';
         row.insertCell().textContent = client.ville || '-';
+        const phoneCell = row.insertCell();
+        if (client.telephone) {
+            const phoneLink = document.createElement('a');
+            phoneLink.href = `tel:${client.telephone.replace(/\s/g, '')}`; // Remove spaces for tel URI
+            phoneLink.textContent = client.telephone;
+            phoneLink.style.textDecoration = 'none'; // Optional: remove underline
+            phoneLink.style.color = 'inherit'; // Optional: keep original text color
+            phoneCell.appendChild(phoneLink);
+        } else {
+            phoneCell.textContent = '-';
+        }
         
         const statusCell = row.insertCell();
         statusCell.classList.add('status-cell');

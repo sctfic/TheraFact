@@ -15,21 +15,22 @@
 <body>
     <header><h1>Application de Facturation Thérapie</h1></header>
     <nav>
-        <button id="fullscreenToggleBtn" title="Passer en mode plein écran (F11)">&#x26F6;</button> 
-        
+        <div class="nav-spacer-left"></div>
         <button id="navSeances" class="nav-btn active">Séances</button>
         <button id="navClients" class="nav-btn">Clients</button>
         <button id="navTarifs" class="nav-btn">Tarifs</button>
         <button id="navDashboard" class="nav-btn">Tableau de Bord</button>
         <button id="navConfig" class="nav-btn">Config</button>
+        <div class="nav-spacer-right"></div>
+        <img id="fullscreenToggleBtn" class="brightness" src="pictures/expand.png" alt="fullScreen" style="height: 1.3em; vertical-align: middle;">
     </nav>
 
     <main>
         <section id="viewSeances" class="view">
-            <h2>Gestion des Séances</h2>
-            <div class="actions-bar">
+            <div class="section-header">
+                <h2>Gestion des Séances</h2>
                 <button id="btnAddSeance" class="btn btn-primary">Ajouter une Séance</button>
-                </div>
+            </div>
             <div id="seanceFormContainer" class="form-container hidden">
                 <!-- <h3 id="seanceFormTitle">Ajouter une nouvelle séance</h3> -->
                 <form id="seanceForm" class="form-grid">
@@ -113,11 +114,10 @@
         </section>
 
         <section id="viewClients" class="view active">
-            <h2>Gestion des Clients</h2>
-            <div class="actions-bar">
+            <div class="section-header">
+                <h2>Gestion des Clients</h2>
                 <button id="btnAddClient" class="btn btn-primary">Ajouter un Client</button>
-                </div>
-
+            </div>
             <div id="clientFormContainer" class="form-container hidden">
                 <!-- <h3 id="clientFormTitle">Ajouter un nouveau client</h3> -->
                 <form id="clientForm" class="form-grid">
@@ -165,10 +165,10 @@
         </section>
 
         <section id="viewTarifs" class="view">
-            <h2>Gestion des Tarifs</h2>
-            <div class="actions-bar">
+            <div class="section-header">
+                <h2>Gestion des Tarifs</h2>
                 <button id="btnAddTarif" class="btn btn-primary">Ajouter un Tarif</button>
-                </div>
+            </div>
             <div id="tarifFormContainer" class="form-container hidden">
                 <!-- <h3 id="tarifFormTitle">Ajouter un nouveau tarif</h3> -->
                 <form id="tarifForm" class="form-grid">
@@ -193,7 +193,7 @@
         <section id="viewDashboard" class="view">
             <h2>Tableau de Bord</h2>
             <div class="dashboard-row" style="display: flex; gap: 1.2rem; flex-wrap: wrap;">
-                <div class="form-container" style="flex:1 1 220px; min-width:220px;">
+                <div class="form-container" style="flex:1 1 110px; min-width:110px;">
                     <h3>Chiffres Clés</h3>
                     <ul>
                         <li>Total Clients : <span id="statClientsCount">0</span></li>
@@ -201,8 +201,8 @@
                         <li>Séances Payées : <span id="statSeancesPayees">0</span></li>
                     </ul>
                 </div>
-                <div class="form-container" style="flex:1 1 220px; min-width:220px;">
-                    <h3>Chiffres d'affaires (€)</h3>
+                <div class="form-container" style="flex:1 1 130px; min-width:130px;">
+                    <h3>Chiffres d'affaires</h3>
                     <ul>
                         <li>Mois Précédent : <span id="caMoisPrecedent">0.00</span> €</li>
                         <li>Mois en Cours : <span id="caMoisEnCours">0.00</span> €</li>
@@ -293,7 +293,7 @@
             <div class="modal-header"><h4 id="deleteModalTitle">Confirmation</h4></div>
             <div class="modal-body"><p id="deleteModalMessage">Êtes-vous sûr ?</p></div>
             <div class="modal-footer">
-                <button id="confirmDeleteBtn" class="btn btn-danger btn-icon-delete" title="Supprimer">&#x1F5D1;</button>
+                <button id="confirmDeleteBtn" class="btn btn-danger" title="Supprimer !">Supprimer</button>
                 <button id="cancelDeleteBtn" class="btn btn-secondary">Annuler</button>
             </div>
         </div>

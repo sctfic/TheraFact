@@ -9,6 +9,7 @@ export function openDeleteModal(id, type, itemName) {
     if (dom.deleteModalTitle) dom.deleteModalTitle.textContent = `Confirmation de suppression`;
     if (dom.deleteModalMessage) dom.deleteModalMessage.textContent = `Êtes-vous sûr de vouloir supprimer "${itemName}" ? Cette action est irréversible.`;
     if (dom.deleteConfirmModal) dom.deleteConfirmModal.style.display = 'block';
+    console.log(`Ouverture de la modale de suppression pour l'ID: ${id}, Type: ${type}`);
 }
 
 export function closeDeleteModal() {

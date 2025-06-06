@@ -10,7 +10,7 @@ nav button {
     font-size: 0.95rem;
     border-radius: 4px;
     transition: background-color 0.2s, color 0.2s, box-shadow 0.2s, border-bottom 0.2s;
-    min-width: 90px;
+    /* min-width: 90px; */
     border-bottom: 3px solid transparent; 
 }
 
@@ -77,42 +77,47 @@ nav button.active {
     /* margin: 0 2px; /* Ajustez les marges externes si nécessaire pour l'espacement avec d'autres boutons */
 }
 
-/* Style pour le bouton plein écran DANS LA NAV */
+/* fullscreenToggleBtn styles (mostly unchanged but ensure it's relative to nav) */
 #fullscreenToggleBtn {
-    position: absolute; /* Positionnement absolu par rapport à <nav> */
-    left: 10px;        /* Distance du bord gauche de la nav bar */
-    top: 50%;          /* Aligné verticalement au centre de la nav bar */
-    transform: translateY(-50%); /* Ajustement fin pour le centrage vertical */
+    position: absolute; /* Position relative to the <nav> element */
+    top: 50%;          
+    transform: translateY(-50%); 
     background: transparent;
     border: none;
-    color: white;      /* Même couleur que les autres boutons de navigation */
-    font-size: 1.6rem; /* Taille du symbole */
-    padding: 0.3rem 0.5rem; /* Un padding similaire aux autres nav-btn peut être bien */
+    color: white;      
+    font-size: 1.6rem; 
+    padding: 0.3rem 0.5rem; 
     cursor: pointer;
-    line-height: 1;    /* Assure un bon alignement du symbole */
-    transition: opacity 0.2s;
-    z-index: 10; /* S'assure qu'il est au-dessus des autres éléments de la nav si jamais */
+    line-height: 1;    
+    transition: opacity 0.6s;
+    z-index: 10; /* Above other nav content if overlap occurs */
 }
 
-#fullscreenToggleBtn:hover {
-    opacity: 0.7;
-    /* Vous pouvez aussi reprendre le style de survol des nav-btn si vous voulez plus de consistance */
-    /* background-color: #0056b3; */ 
+.brightness {
+    filter: brightness(10%) invert(90%);
+}
+nav .brightness {
+    filter: brightness(30%) invert(70%);
+}
+.brightness:hover {
+    filter: brightness(0) invert(1);
 }
 
-/* Styles pour les boutons de navigation (existants) */
-nav button.nav-btn { /* cibler spécifiquement les .nav-btn pour éviter d'affecter fullscreenToggleBtn */
+
+/* Styles for nav buttons (existing, ensure they are targeted correctly) */
+nav button.nav-btn {
     background-color: transparent;
     color: white;
     border: none;
     padding: 0.5rem 1rem;
-    margin: 0 0.2rem;
+    margin: 0 0.2rem; /* Spacing between buttons */
     cursor: pointer;
     font-size: 0.95rem;
     border-radius: 4px;
     transition: background-color 0.2s, color 0.2s, box-shadow 0.2s, border-bottom 0.2s;
-    min-width: 90px;
+    /* min-width: 90px; */
     border-bottom: 3px solid transparent; 
+    flex-shrink: 0; /* Prevents buttons from shrinking too much */
 }
 
 nav button.nav-btn:hover {
@@ -126,4 +131,59 @@ nav button.nav-btn.active {
     font-weight: bold; 
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); 
     border-bottom: 3px solid #00c6ff; 
+}
+.section-header {
+    display: flex;                 /* Active le modèle de boîte flexible */
+    justify-content: space-between;/* Pousse le titre et le bouton aux extrémités opposées */
+    align-items: center;           /* Centre verticalement le bouton par rapport au titre */
+    margin-bottom: 1rem;           /* Espace sous l'en-tête (repris du style h2 original) */
+    
+    /* Reprise des styles visuels du h2 pour le conteneur */
+    border-bottom: 1px solid #007bff;
+    padding-bottom: 0.3rem;
+}
+
+/* Ajustement pour le h2 qui est maintenant à l'intérieur de notre conteneur.
+   On supprime les styles qui sont maintenant gérés par .section-header.
+*/
+.section-header h2 {
+    border-bottom: none; /* La bordure est maintenant sur le parent */
+    padding-bottom: 0;   /* Le padding est maintenant sur le parent */
+    margin-bottom: 0;    /* La marge est maintenant sur le parent */
+    margin-top: 0;
+}
+/* public/css/buttons.css - Add at the end or in a dedicated responsive stylesheet */
+
+@media (max-width: 768px) {
+    #fullscreenToggleBtn {
+        font-size: 1.4rem;
+        padding: 0.2rem 0.4rem;
+    }
+
+    nav button.nav-btn {
+        min-width: auto; 
+        padding: 0.5rem 0.6rem; 
+        font-size: 0.85rem; 
+        margin: 0 1px;
+    }
+
+    /* Adjust spacers if needed, or allow the central button group to scroll */
+    /* If the central button group itself needs to scroll: */
+    /* You might need to wrap the nav-buttons in a div and make that div scrollable */
+    nav {
+        /* If buttons (excluding spacers) overflow, allow nav to scroll them */
+        /* overflow-x: auto; */ /* Enable this if the button group is too wide */
+    }
+}
+
+@media (max-width: 480px) {
+    #fullscreenToggleBtn {
+        font-size: 1.3rem;
+    }
+
+    nav button.nav-btn {
+        padding: 0.3rem 0.3rem;
+        font-size: 0.8rem;
+    }
+     /* If you enable overflow-x: auto; on nav for 768px, it applies here too */
 }

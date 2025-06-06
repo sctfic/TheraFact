@@ -46,10 +46,10 @@ function initializeFullscreenButton() {
     function updateButtonAppearance() {
         if (!fullscreenBtn) return; 
         if (document.fullscreenElement) {
-            fullscreenBtn.innerHTML = exitFullscreenSymbol;
+            fullscreenBtn.src = 'pictures/Reduce.png';
             fullscreenBtn.title = "Quitter le mode plein écran (Esc)";
         } else {
-            fullscreenBtn.innerHTML = enterFullscreenSymbol;
+            fullscreenBtn.src = 'pictures/Expand.png';
             fullscreenBtn.title = "Passer en mode plein écran (F11)";
         }
     }

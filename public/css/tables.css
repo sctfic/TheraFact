@@ -15,9 +15,9 @@ table {
 }
 
 th, td {
-    padding: 0.45rem 0.7rem;
+    padding: 0.3rem 0.4rem;
     text-align: left;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #ddd;
     white-space: nowrap;
 }
 td.wrap-text {
@@ -63,4 +63,23 @@ td.status-cell input[type="checkbox"] {
 }
 #seancesTable td.invoice-cell button {
     margin: 0 2px;
+}
+
+@media (max-width: 768px) {
+    #seancesTable td, #seancesTable th {
+        padding: 0.4rem 0.5rem; /* Slightly reduce padding in all cells for more space */
+    }
+
+    /* Target the date cell specifically if needed - assumes it's the first child, or add a class */
+    #seancesTable td:first-child { 
+        font-size: 0.85em; /* Slightly reduce font size for date cell if it helps */
+        white-space: normal; /* Allow wrapping if it was previously nowrap */
+    }
+}
+
+@media (max-width: 480px) {
+    #seancesTable td:first-child {
+        font-size: 0.8em;
+         /* Consider white-space: nowrap; and allow table to scroll if dates are critical on one line */
+    }
 }
