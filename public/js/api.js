@@ -187,6 +187,27 @@ export async function disconnectGoogleAccount() {
     }
     return result;
 }
+// Fichier : js/api.js
+// Ajoutez cette nouvelle fonction à la fin du fichier
 
+export async function fetchCalendarAvailability() {
+    // Vérifie si l'utilisateur est connecté à Google avant de faire l'appel
+    // Vous pouvez récupérer `appSettings` depuis `state.js` si nécessaire
+    // if (!state.appSettings.googleOAuth.isConnected) {
+    //    console.log("Non connecté à Google, impossible de récupérer les disponibilités.");
+    //    return []; // Retourne un tableau vide
+    // }
+    try {
+        const response = await fetch(`${API_BASE_URL}/calendar/availability`);
+        if (!response.ok) {
+            throw new Error('Échec de la récupération des disponibilités du calendrier');
+        }
+        return await response.json();
+    } catch (error) {
+        showToast(`Erreur disponibilités: ${error.message}`, 'warning');
+        console.error("Erreur fetchCalendarAvailability:", error);
+        return []; // Retourne un tableau vide en cas d'erreur
+    }
+}
 // La fonction populateTarifDropdowns a été déplacée vers uiHelpers.js
 // et est importée en haut de ce fichier.

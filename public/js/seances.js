@@ -31,6 +31,34 @@ export function applyDefaultSeanceDateFilters() {
     }
 }
 
+function renderAvailability(busySlots) {
+    const container = dom.availabilityInfoContainer;
+    const list = dom.availabilityList;
+
+    if (!container || !list) return;
+
+    list.innerHTML = ''; // Vider la liste précédente
+
+    if (!busySlots || busySlots.length === 0) {
+        list.innerHTML = '<li>Aucun événement trouvé dans les 90 prochains jours.</li>';
+        container.classList.remove('hidden');
+        return;
+    }
+
+    // Formatter et afficher chaque créneau occupé
+    busySlots.forEach(slot => {
+        const start = new Date(slot.start);
+        const end = new Date(slot.end);
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+
+        const li = document.createElement('li');
+        li.textContent = `Occupé du ${start.toLocaleDateString('fr-FR', options)} au ${end.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'})}`;
+        list.appendChild(li);
+    });
+
+    container.classList.remove('hidden');
+}
+
 
 function resetAndOpenSeanceForm(seanceId = null) {
     state.setEditingSeanceId(seanceId);
@@ -44,6 +72,14 @@ function resetAndOpenSeanceForm(seanceId = null) {
     }
 
     populateTarifDropdowns(); 
+// Cacher les anciennes disponibilités et afficher "chargement"
+    if (dom.availabilityInfoContainer) dom.availabilityInfoContainer.classList.add('hidden');
+    if (dom.availabilityList) dom.availabilityList.innerHTML = '<li>Chargement des disponibilités...</li>';
+    
+    // Appeler l'API pour récupérer les disponibilités et les afficher
+    api.fetchCalendarAvailability().then(busySlots => {
+        renderAvailability(busySlots);
+    });
 
     if (seanceId) {
         const seance = state.seances.find(s => s.id_seance === seanceId);
@@ -119,6 +155,11 @@ function closeSeanceForm() {
     dom.seanceFormContainer.classList.add('hidden');
     dom.seanceForm.reset();
     state.setEditingSeanceId(null);
+
+    // AJOUT: Cacher les disponibilités à la fermeture
+    if (dom.availabilityInfoContainer) {
+        dom.availabilityInfoContainer.classList.add('hidden');
+    }
     if (dom.clientAutocompleteResults) {
         dom.clientAutocompleteResults.innerHTML = '';
         dom.clientAutocompleteResults.classList.add('hidden');
@@ -159,21 +200,39 @@ async function handleSeanceFormSubmit(event) {
     if (!idClient || !state.clients.find(c => c.id === idClient)) { showToast("Client invalide.", "error"); return; }
     
     const idTarif = dom.seanceTarifSelect.value;
-    if (!idTarif || !state.tarifs.find(t => t.id === idTarif)) { showToast("Tarif invalide.", "error"); return; }
+    if (!idTarif || !state.tarifs.find(t => t.id === idTarif)) { 
+        showToast("Tarif invalide.", "error"); 
+        return; 
+    }
+
+    // --- DÉBUT DE LA MODIFICATION ---
+
+    // 1. Retrouver l'objet tarif complet à partir de son ID
+    const selectedTarif = state.tarifs.find(t => t.id === idTarif);
     
+    // 2. Extraire la durée (en prévoyant le cas où elle ne serait pas définie)
+    const dureeSeance = selectedTarif ? selectedTarif.duree : null;
+
+    // --- FIN DE LA MODIFICATION ---
+
     const montant = parseFloat(dom.seanceMontantInput.value);
-    if (isNaN(montant)) { showToast("Montant invalide.", "error"); return; }
+    if (isNaN(montant)) { 
+        showToast("Montant invalide.", "error"); 
+        return; 
+    }
 
     const seanceData = {
         id_seance: dom.seanceIdInput.value || generateUUID(),
         id_client: idClient,
         date_heure_seance: dom.seanceDateElement.value,
         id_tarif: idTarif,
+        duree_seance: dureeSeance, // 3. AJOUTER LA DURÉE ICI
         montant_facture: montant,
         statut_seance: dom.seanceStatutSelect.value,
         mode_paiement: dom.seanceStatutSelect.value === 'PAYEE' ? (dom.seanceModePaiementSelect.value || null) : null,
         date_paiement: dom.seanceStatutSelect.value === 'PAYEE' && dom.seanceDatePaiementInput.value ? dom.seanceDatePaiementInput.value : null,
     };
+
     if (state.editingSeanceId) { 
         const existingSeance = state.seances.find(s => s.id_seance === state.editingSeanceId);
         seanceData.invoice_number = existingSeance?.invoice_number || null;

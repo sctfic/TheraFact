@@ -1,18 +1,19 @@
 {
   "name": "therapy-billing-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Backend for therapy billing application",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node src/server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "googleapis": "^149.0.0",
-    "nodemailer": "^7.0.3",
-    "puppeteer": "^24.10.0"
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
+    "nodemailer": "^7.0.3"
   },
-  "author": "",
-  "license": "ISC"
+  "author": "Alban LOPEZ",
+  "license": "MIT"
 }

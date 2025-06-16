@@ -95,8 +95,7 @@ nav {
 .nav-spacer-left {
     min-width: 40px; /* Minimum width for left spacer */
 }
-.nav-spacer-left,
-.nav-spacer-right {
+.nav-spacer-left {
     flex-grow: 1;  /* Allows spacers to take up available space */
     flex-basis: 0; /* Distributes space based on flex-grow */
     /* border: 1px dashed yellow; /* For debugging layout - remove later */
@@ -107,6 +106,24 @@ nav button.nav-btn {
     flex-shrink: 0; /* Prevent nav buttons from shrinking if space is tight */
 }
 
+
+.nav-spacer-right {
+    flex-grow: 1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding-right: 15px; /* Espace avant le bouton fullscreen */
+}
+
+.data-context-display {
+    text-align: center;
+    font-weight: bold;
+    padding: 8px 0;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    color: #495057;
+    width: 100%;
+}
 main {
     flex-grow: 1;
     padding: 1.2rem 0.5rem; 
@@ -160,4 +177,96 @@ h2 {
     display: none !important; 
 }
 
-/* Le reste des styles (modals, forms, tables, buttons, components) reste inchangé */
+.user-profile-container {
+    position: relative;
+    display: inline-block;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.user-profile-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px; /* Hauteur fixe pour le conteneur */
+    width: 32px;  /* Largeur fixe pour le conteneur */
+    cursor: pointer;
+}
+
+/* Style commun pour l'icône SVG et l'image de profil */
+.nav-google-icon {
+    height: 100%;
+    width: 100%;
+    vertical-align: middle;
+    border-radius: 50%; /* Arrondi pour l'image et le conteneur SVG */
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+    box-sizing: border-box; /* S'assure que la bordure est à l'intérieur */
+}
+/* 
+.nav-google-icon:hover {
+    border-color: #ddd;
+} */
+.user-profile-container:hover > .nav-google-icon {
+    border-color: #ddd;
+}
+.user-profile-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    min-width: 220px;
+    z-index: 1000;
+    padding: 8px 0;
+    transition: opacity 0.2s, transform 0.2s;
+    transform-origin: top right;
+}
+
+.user-profile-dropdown.hidden {
+    opacity: 0;
+    transform: scale(0.95);
+    pointer-events: none;
+}
+
+.dropdown-user-info {
+    padding: 8px 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.dropdown-user-name {
+    font-weight: bold;
+    color: #202124;
+}
+
+.dropdown-user-email {
+    font-size: 0.9em;
+    color: #5f6368;
+}
+
+.dropdown-divider {
+    margin: 8px 0;
+    border: none;
+    border-top: 1px solid #e0e0e0;
+}
+
+.dropdown-button {
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 0.95em;
+    color: #3c4043;
+}
+
+.dropdown-button:hover {
+    background-color: #f1f3f4;
+}

@@ -2,12 +2,19 @@
 export let clients = [];
 export let tarifs = [];
 export let seances = [];
-export let appSettings = { // Valeurs par défaut au cas où le fetch échoue
+export let appSettings = {
     manager: { name: "", title: "", description: "", address: "", city: "", phone: "", email: "" },
-    googleOAuth: { isConnected: false, userEmail: null, scopes: [] },
+    googleOAuth: { 
+        isConnected: false, 
+        userEmail: null, 
+        userName: null, // Ajout
+        profilePictureUrl: null, // Ajout
+        scopes: [] 
+    },
     tva: 0,
     legal: { siret: "", ape: "", adeli: "", iban: "", bic: "", tvaMention: "TVA non applicable - Art. 293B du CGI", paymentTerms: "Paiement à réception de facture", insurance: "" },
-    googleCalendar: { calendarId: "primary" }
+    googleCalendar: { calendarId: "primary" },
+    dataContext: "demo"
 };
 export let currentlyEditingRow = null; // Pour l'édition en ligne des séances
 

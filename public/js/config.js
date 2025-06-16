@@ -6,8 +6,46 @@ import { showToast, getApiBaseUrl } from './utils.js';
 
 const API_BASE_URL = getApiBaseUrl();
 
+/**
+ * Met à jour les informations de la barre supérieure (avatar, contexte de données).
+ * @param {object} currentSettings - L'objet des paramètres de l'application.
+ */
+export function updateTopBarInfo(currentSettings = state.appSettings) {
+    if (!currentSettings || !dom.userProfileContainer) return;
+
+    const isConnected = currentSettings.googleOAuth && currentSettings.googleOAuth.isConnected;
+    
+    // On cible directement l'image à l'intérieur du SVG
+    if (dom.svgInnerImage) {
+        if (isConnected && currentSettings.googleOAuth.profilePictureUrl) {
+            // État connecté : on affiche l'avatar de l'utilisateur
+            dom.svgInnerImage.setAttribute('href', currentSettings.googleOAuth.profilePictureUrl);
+            dom.userProfileContainer.title = "Compte Google - " + (currentSettings.googleOAuth.userName || currentSettings.googleOAuth.userEmail);
+        } else {
+            // État déconnecté : on affiche l'icône de déconnexion
+            dom.svgInnerImage.setAttribute('href', 'pictures/google_disconnected.png');
+            dom.userProfileContainer.title = "Connecter un compte Google";
+        }
+        dom.svgInnerImage.classList.toggle('brightness', !isConnected);
+    }
+    
+    // Mettre à jour les infos dans le menu déroulant (si connecté)
+    if (isConnected) {
+        if (dom.dropdownUserName) dom.dropdownUserName.textContent = currentSettings.googleOAuth.userName || '';
+        if (dom.dropdownUserEmail) dom.dropdownUserEmail.textContent = currentSettings.googleOAuth.userEmail || '';
+    }
+
+    if (dom.dataContextDisplay) {
+        dom.dataContextDisplay.textContent = currentSettings.dataContext || 'demo';
+    }
+}
+
+
 export function populateConfigForm(currentSettings = state.appSettings) {
     if (!currentSettings || !dom.configForm) return;
+
+    // Mettre à jour les infos globales de la barre du haut
+    updateTopBarInfo(currentSettings);
     
     if (currentSettings.manager) {
         if(dom.configManagerName) dom.configManagerName.value = currentSettings.manager.name || '';
@@ -92,14 +130,13 @@ async function handleConfigFormSubmit(event) {
             paymentTerms: dom.configPaymentTerms.value, 
             insurance: dom.configInsurance.value
         }
-        // Ne pas inclure googleOAuth ici, car il est géré par les endpoints OAuth dédiés
     };
 
     try {
         const savedSettings = await api.saveSettings(updatedSettings);
-        state.setAppSettings(savedSettings); // Mettre à jour l'état global
+        state.setAppSettings(savedSettings);
         showToast('Paramètres enregistrés avec succès.', 'success');
-        populateConfigForm(savedSettings); // Re-populer avec les données sauvegardées (au cas où le backend modifie qqch)
+        populateConfigForm(savedSettings);
     } catch (error) {
         showToast(`Erreur sauvegarde paramètres: ${error.message}`, 'error');
     }
@@ -110,23 +147,38 @@ function connectGoogle() {
 }
 
 async function disconnectGoogle() {
+    if (dom.userProfileDropdown) dom.userProfileDropdown.classList.add('hidden');
     try {
         await api.disconnectGoogleAccount();
         showToast('Compte Google déconnecté avec succès.', 'success');
-        // Rafraîchir les paramètres pour mettre à jour l'UI
-        await api.fetchSettings(); 
+        await Promise.all([
+            api.fetchSettings(),
+            api.fetchTarifs(),
+            api.fetchClients(),
+            api.fetchSeances()
+        ]);
         populateConfigForm(state.appSettings); 
     } catch (error) {
         showToast(`Erreur lors de la déconnexion : ${error.message}`, 'error');
     }
 }
-
-export function handleOAuthCallback() { // Exportée pour navigation.js
+function toggleDropdown() {
+    if (dom.userProfileDropdown) {
+        dom.userProfileDropdown.classList.toggle('hidden');
+    }
+}
+export function handleOAuthCallback() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('oauth_success')) {
         showToast('Compte Google connecté avec succès !', 'success');
-        api.fetchSettings().then(() => populateConfigForm(state.appSettings)); // S'assurer que les settings sont à jour
-        // Nettoyer l'URL
+        Promise.all([
+            api.fetchSettings(),
+            api.fetchTarifs(),
+            api.fetchClients(),
+            api.fetchSeances()
+        ]).then(() => {
+            populateConfigForm(state.appSettings);
+        });
         window.history.replaceState({}, document.title, window.location.pathname + "#viewConfig");
     } else if (urlParams.has('oauth_error')) {
         showToast(`Erreur de connexion Google : ${urlParams.get('oauth_error')}`, 'error');
@@ -139,9 +191,25 @@ export function initializeConfigManagement() {
     if (dom.btnConnectGoogle) dom.btnConnectGoogle.addEventListener('click', connectGoogle);
     if (dom.btnDisconnectGoogle) dom.btnDisconnectGoogle.addEventListener('click', disconnectGoogle);
     
-    // S'assurer que le formulaire est peuplé si on arrive directement sur la vue config
-    // (généralement géré par switchView, mais une vérification ici peut être utile)
-    if (dom.viewConfig && dom.viewConfig.classList.contains('active')) {
-        populateConfigForm(state.appSettings);
+   // Le listener est sur le conteneur principal du SVG/avatar
+    if (dom.userProfileContainer) {
+        dom.userProfileContainer.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (state.appSettings.googleOAuth.isConnected) {
+                toggleDropdown(); // Si connecté, ouvre le menu
+            } else {
+                connectGoogle(); // Si déconnecté, lance la connexion
+            }
+        });
     }
+
+    if (dom.dropdownDisconnectBtn) {
+        dom.dropdownDisconnectBtn.addEventListener('click', disconnectGoogle);
+    }
+    
+    window.addEventListener('click', () => {
+        if (dom.userProfileDropdown && !dom.userProfileDropdown.classList.contains('hidden')) {
+            dom.userProfileDropdown.classList.add('hidden');
+        }
+    });
 }

@@ -1,4 +1,3 @@
-
 // js/dashboard.js
 import * as dom from './dom.js';
 import * as state from './state.js';
@@ -87,6 +86,7 @@ function prepareChartData(allSeances, periodType) {
             }
         }
     });
+    // Tri chronologique sur periodDate
     return Object.values(aggregatedData).sort((a, b) => a.periodDate - b.periodDate);
 }
 // État global du graphique
@@ -100,7 +100,8 @@ let chartState = {
     x: null,
     yCounts: null,
     yAmounts: null,
-    tooltip: null
+    tooltip: null,
+    periodType: 'month' // Ajout de periodType, valeur par défaut 'month'
 };
 const margin = {top: 10, right: 60, bottom: 90, left: 40};
 
@@ -231,38 +232,50 @@ function handleMouseWheel(event) {
 
 function drawChartElements(width, height, margin, initialRender = false) {
     const svg = chartState.svg;
-    const content = chartState.chartContent; // Utiliser le groupe conteneur
-    const data = chartState.visibleData;
-    
-    // Supprimer les anciens éléments graphiques
+    const content = chartState.chartContent;
+    let data = chartState.visibleData;
+    const periodType = chartState.periodType; // Utilisation de chartState.periodType
+
+    // Limiter à 45 jours en mode "jour"
+    if (periodType === 'day' && data.length > 45) {
+        data = data.slice(-45);
+    }
+
     svg.selectAll(".axis").remove();
     svg.selectAll(".legend-container").remove();
     content.selectAll("*").remove();
+
+    // Utiliser d3.scaleTime pour l'axe X
+    const minDate = d3.min(data, d => d.periodDate);
+    const maxDate = d3.max(data, d => d.periodDate);
+    chartState.x = d3.scaleTime()
+        .domain([minDate, maxDate])
+        .range([0, width]);
 
     // Axe X
     const xAxisGroup = svg.append("g")
         .attr("class", "axis axis--x")
         .attr("transform", `translate(0,${height})`)
-        .call(d3.axisBottom(chartState.x));
-
-    // Gestion des étiquettes surchargées
-    const allTicks = xAxisGroup.selectAll(".tick text");
-    const totalTicks = allTicks.size();
-    const pixelsPerTick = width / totalTicks;
-    const minPixelsPerTick = 80;
-
-    if (pixelsPerTick < minPixelsPerTick) {
-        const nth = Math.ceil(minPixelsPerTick / pixelsPerTick);
-        allTicks.each(function(d, i) {
-            if (i % nth !== 0) d3.select(this).style("display", "none");
-        });
-    }
+        .call(
+            d3.axisBottom(chartState.x)
+                .ticks(periodType === 'day' ? 7 : 7)
+                .tickFormat(periodType === 'day' ? d3.timeFormat("%d/%m") : d3.timeFormat("%b %Y"))
+        );
 
     xAxisGroup.selectAll("text")
         .style("text-anchor", "end")
         .attr("dx", "-.8em")
         .attr("dy", ".15em")
         .attr("transform", "rotate(-45)");
+
+    // Largeur de barre ajustée pour 45 jours max
+    let barWidth = 8;
+    if (periodType === 'day') {
+        barWidth = Math.max(4, width / Math.min(data.length, 45) * 0.7);
+    } else {
+        barWidth = Math.max(8, width / data.length * 0.7);
+    }
+    console.log(`Bar width: ${barWidth} for period type:`,chartState);
 
     // Axe Y (Comptages)
     svg.append("g")
@@ -291,11 +304,11 @@ function drawChartElements(width, height, margin, initialRender = false) {
             .attr("text-anchor", "middle")
             .text("Montant Payé (€)");
 
-    // Barres empilées avec animation
-    const stackKeys = ['plannedSessions', 'toPaySessions', 'paidSessions', 'cancelledSessions']; 
+    // Barres empilées : largeur dynamique selon la densité
+    const stackKeys = ['plannedSessions', 'toPaySessions', 'paidSessions', 'cancelledSessions'];
     const stack = d3.stack().keys(stackKeys);
     const stackedData = stack(data);
-    const colorScale = d3.scaleOrdinal().domain(stackKeys).range(['#17a2b8', '#ffc107', '#28a745', '#dc3545']); 
+    const colorScale = d3.scaleOrdinal().domain(stackKeys).range(['#17a2b8', '#ffc107', '#28a745', '#dc3545']);
 
     const barGroups = content.append("g")
         .selectAll("g")
@@ -307,9 +320,9 @@ function drawChartElements(width, height, margin, initialRender = false) {
     barGroups.selectAll("rect")
         .data(d => d)
         .enter().append("rect")
-            .attr("x", d => chartState.x(d.data.periodLabel))
-            .attr("width", chartState.x.bandwidth())
-            .attr("y", height) // Commence en bas pour l'animation
+            .attr("x", d => chartState.x(d.data.periodDate) - barWidth / 2)
+            .attr("width", barWidth)
+            .attr("y", height)
             .attr("height", 0)
             .on("mouseover", function(event, d) {
                 const key = d3.select(this.parentNode).datum().key;
@@ -341,15 +354,18 @@ function drawChartElements(width, height, margin, initialRender = false) {
                 .attr("y", d => chartState.yCounts(d[1])) // au niveau de l'axe X
                 .attr("height", d => Math.max(0, chartState.yCounts(d[0]) - chartState.yCounts(d[1])));
 
-    // Ligne des montants payés avec animation
+    // Ligne des montants payés
+    const sortedLineData = data
+        .map(d => ({ ...d, paidAmount: d.paidAmount || 0 }))
+        .sort((a, b) => a.periodDate - b.periodDate);
+
     const linePaidAmount = d3.line()
-        .x(d => chartState.x(d.periodLabel) + chartState.x.bandwidth() / 2)
+        .x(d => chartState.x(d.periodDate))
         .y(d => chartState.yAmounts(d.paidAmount))
         .defined(d => d.paidAmount !== undefined && d.paidAmount !== null);
-    
-    // Préparation du chemin (invisible initialement)
+
     const path = content.append("path")
-        .datum(data.map(d => ({...d, paidAmount: d.paidAmount || 0})))
+        .datum(sortedLineData)
         .attr("class", "line paid-amount-line")
         .attr("fill", "none")
         .attr("stroke", "#007bff")
@@ -362,21 +378,20 @@ function drawChartElements(width, height, margin, initialRender = false) {
         .attr("stroke-dashoffset", function() {
             return this.getTotalLength();
         });
-    
-    // Animation de la ligne
+
     path.transition()
         .duration(initialRender ? 1000 : 600)
         .ease(d3.easeCubicInOut)
         .attr("stroke-dashoffset", 0);
 
-    // Points sur la ligne avec animation
+    // Points sur la ligne
     const dots = content.selectAll(".dot-paid-amount")
         .data(data.filter(d => d.paidAmount > 0))
         .enter().append("circle")
             .attr("class", "dot dot-paid-amount")
-            .attr("cx", d => chartState.x(d.periodLabel) + chartState.x.bandwidth() / 2)
-            .attr("cy", height) // Commence en bas
-            .attr("r", 0) // Taille initiale nulle
+            .attr("cx", d => chartState.x(d.periodDate))
+            .attr("cy", height)
+            .attr("r", 0)
             .attr("fill", "#007bff")
             .attr("stroke", "white")
             .attr("stroke-width", 1.5)
@@ -389,15 +404,14 @@ function drawChartElements(width, height, margin, initialRender = false) {
             .on("mouseout", () => {
                 chartState.tooltip.transition().duration(500).style("opacity", 0);
             });
-    
-    // Animation des points
+
     dots.transition()
         .delay((d, i) => initialRender ? i * 50 : i * 20)
         .duration(400)
         .ease(d3.easeBackOut)
         .attr("cy", d => chartState.yAmounts(d.paidAmount))
         .attr("r", 5);
-    
+
     // Légende
     const legendData = [
         { color: '#17a2b8', text: "Planifiées" },
@@ -488,6 +502,7 @@ export function updateDashboardStats() {
     seancesPayees.forEach(seance => {
         if (!seance.date_paiement) return;
         const date = new Date(seance.date_paiement);
+        console.log("Date de paiement:", date);
         const mois = date.getMonth();
         const annee = date.getFullYear();
         const montant = parseFloat(seance.montant_facture || 0);

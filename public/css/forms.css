@@ -106,3 +106,40 @@ td > input.form-input-sm {
     margin-top: 1rem; /* Espace au-dessus des boutons */
     /* margin-bottom: 0.2rem; /* Conserve un petit espace en bas si besoin */
 }
+/* Fichier : css/components.css (ou forms.css) */
+
+/* Styles pour le conteneur des disponibilités */
+#availabilityInfoContainer {
+    grid-column: 1 / -1; /* Prend toute la largeur dans la grille du formulaire */
+    margin-top: 1rem;
+    padding: 0.8rem;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+}
+
+#availabilityInfoContainer h4 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    color: #333;
+    font-size: 1rem;
+}
+
+#availabilityList {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 0;
+    max-height: 150px; /* Hauteur maximale avec une barre de défilement */
+    overflow-y: auto;  /* Ajoute une barre de défilement si nécessaire */
+    font-size: 0.9em;
+    color: #555;
+}
+
+#availabilityList li {
+    padding: 0.3rem 0.2rem;
+    border-bottom: 1px solid #eee;
+}
+
+#availabilityList li:last-child {
+    border-bottom: none;
+}

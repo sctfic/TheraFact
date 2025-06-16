@@ -50,7 +50,8 @@ export function getApiBaseUrl() {
     // Si le port est différent (ex: 3000 pour le serveur Node.js), vous devez le gérer.
     // Pour l'instant, nous allons supposer que le port 3000 est toujours nécessaire pour l'API.
     const appBaseUrl = window.location.origin; // ex: http://fact.lpz.ovh ou http://localhost:xxxx
-    return `${appBaseUrl.replace(/:\d+$/, '')}:3000/api`; // Assure que le port est 3000 pour l'API
+    // on ajoute le port defini pour l'API en variable d'environnement
+    return `${appBaseUrl.replace(/:\d+$/, '')}/api`; // Assure que le port est 3000 pour l'API
 }
 
 export function getAppBaseUrl() {

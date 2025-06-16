@@ -1,6 +1,15 @@
 // js/dom.js
 export const navButtons = document.querySelectorAll('.nav-btn');
 export const views = document.querySelectorAll('.view');
+export const dataContextDisplay = document.getElementById('dataContextDisplay');
+
+// Profil utilisateur et menu déroulant
+export const userProfileContainer = document.getElementById('userProfileContainer');
+export const svgInnerImage = document.getElementById('svgInnerImage'); // Nouvel élément à contrôler
+export const userProfileDropdown = document.getElementById('userProfileDropdown');
+export const dropdownUserName = document.getElementById('dropdownUserName');
+export const dropdownUserEmail = document.getElementById('dropdownUserEmail');
+export const dropdownDisconnectBtn = document.getElementById('dropdownDisconnectBtn');
 
 // Clients
 export const clientFormContainer = document.getElementById('clientFormContainer');
