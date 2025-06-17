@@ -69,7 +69,9 @@ export function populateConfigForm(currentSettings = state.appSettings) {
                 if (scope.includes('gmail.send')) readableScope = "Envoyer des emails";
                 else if (scope.includes('calendar.events')) readableScope = "Gérer les événements du calendrier";
                 else if (scope.includes('userinfo.email')) readableScope = "Voir votre adresse email";
-                else if (scope.includes('userinfo.profile')) readableScope = "Voir vos informations de profil basiques";
+                else if (scope.includes('userinfo.profile')) readableScope = "Voir vos informations de profil basiques (avatar)";
+                else if (scope.includes('drive.file')) readableScope = "Gérer les fichiers créés ou ouverts avec cette application";
+                else if (scope.includes('sheets')) readableScope = "Gérer vos feuilles de calcul Google Sheets";
                 scopesHtml += `<li>${readableScope}</li>`;
             });
             scopesHtml += '</ul>';
@@ -134,9 +136,16 @@ async function handleConfigFormSubmit(event) {
 
     try {
         const savedSettings = await api.saveSettings(updatedSettings);
-        state.setAppSettings(savedSettings);
+        
+        // Fusionner explicitement les infos OAuth existantes
+        const mergedSettings = {
+            ...savedSettings,
+            googleOAuth: state.appSettings.googleOAuth
+        };
+        
+        state.setAppSettings(mergedSettings);
         showToast('Paramètres enregistrés avec succès.', 'success');
-        populateConfigForm(savedSettings);
+        populateConfigForm(mergedSettings); // Utiliser les paramètres fusionnés
     } catch (error) {
         showToast(`Erreur sauvegarde paramètres: ${error.message}`, 'error');
     }
@@ -147,17 +156,12 @@ function connectGoogle() {
 }
 
 async function disconnectGoogle() {
-    if (dom.userProfileDropdown) dom.userProfileDropdown.classList.add('hidden');
     try {
+        if (dom.userProfileDropdown) dom.userProfileDropdown.classList.add('hidden');
         await api.disconnectGoogleAccount();
         showToast('Compte Google déconnecté avec succès.', 'success');
-        await Promise.all([
-            api.fetchSettings(),
-            api.fetchTarifs(),
-            api.fetchClients(),
-            api.fetchSeances()
-        ]);
-        populateConfigForm(state.appSettings); 
+        // Recharger complètement la page pour que le serveur efface le cookie et que l'état soit propre
+        window.location.reload();
     } catch (error) {
         showToast(`Erreur lors de la déconnexion : ${error.message}`, 'error');
     }
@@ -167,21 +171,25 @@ function toggleDropdown() {
         dom.userProfileDropdown.classList.toggle('hidden');
     }
 }
+// Cette fonction gère le retour de la page de connexion
 export function handleOAuthCallback() {
+    // On vérifie si on est bien redirigé vers la bonne ancre après une connexion réussie
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('oauth_success')) {
+    if (urlParams.has('oauth_success') && window.location.hash === '#viewConfig') {
         showToast('Compte Google connecté avec succès !', 'success');
+        
+        // Recharger les données pour refléter le nouvel état de connexion
         Promise.all([
             api.fetchSettings(),
             api.fetchTarifs(),
             api.fetchClients(),
             api.fetchSeances()
         ]).then(() => {
+            // Re-populer le formulaire de config et mettre à jour la barre du haut
             populateConfigForm(state.appSettings);
         });
-        window.history.replaceState({}, document.title, window.location.pathname + "#viewConfig");
-    } else if (urlParams.has('oauth_error')) {
-        showToast(`Erreur de connexion Google : ${urlParams.get('oauth_error')}`, 'error');
+        
+        // Nettoyer l'URL
         window.history.replaceState({}, document.title, window.location.pathname + "#viewConfig");
     }
 }

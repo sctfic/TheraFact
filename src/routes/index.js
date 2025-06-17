@@ -5,6 +5,7 @@ const seanceRoutes = require('./seanceRoutes');
 const settingsRoutes = require('./settingsRoutes');
 const documentRoutes = require('./documentRoutes');
 const calendarRoutes = require('./calendarRoutes');
+const emailRoutes = require('./emailRoutes');
 
 module.exports = (app) => {
     authRoutes(app);
@@ -14,4 +15,5 @@ module.exports = (app) => {
     settingsRoutes(app);
     documentRoutes(app);
     calendarRoutes(app);
+    emailRoutes(app);
 };

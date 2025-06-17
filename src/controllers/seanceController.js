@@ -2,7 +2,6 @@
 const Seance = require('../models/Seance');
 const Client = require('../models/Client');
 const Tarif = require('../models/Tarif');
-const { authState } = require('./authController');
 const { readSettingsJson, getDataPath } = require('../helpers/fileHelper');
 const calendarHelper = require('../helpers/calendarHelper');
 const fs = require('fs').promises;
@@ -76,7 +75,8 @@ async function getNextDevisNumber(dataPath) {
 
 async function getAllSeances(req, res) { 
     try {
-        const dataPath = getDataPath(authState.activeGoogleAuthTokens.userEmail);
+        const { userEmail } = req;
+        const dataPath = getDataPath(userEmail);
         let seances = await Seance.findAll(dataPath);
         let tsvModified = false;
 
@@ -86,20 +86,15 @@ async function getAllSeances(req, res) {
             const files = await fs.readdir(factsDir);
             existingInvoiceFiles = files.filter(file => file.endsWith('.json')).map(file => file.slice(0, -5));
         } catch (err) {
-            if (err.code !== 'ENOENT') {
-                console.warn(`Impossible de lire le répertoire des factures ${factsDir}: ${err.message}`);
-            }
+            if (err.code !== 'ENOENT') console.warn(`Impossible de lire le répertoire des factures ${factsDir}: ${err.message}`);
         }
         
-        for (let i = 0; i < seances.length; i++) {
-            const seance = seances[i];
-            if (seance.invoice_number && seance.invoice_number.trim() !== '') {
-                if (!existingInvoiceFiles.includes(seance.invoice_number)) {
-                    seances[i].invoice_number = null;
-                    tsvModified = true;
-                }
+        seances.forEach((seance, i) => {
+            if (seance.invoice_number && seance.invoice_number.trim() !== '' && !existingInvoiceFiles.includes(seance.invoice_number)) {
+                seances[i].invoice_number = null;
+                tsvModified = true;
             }
-        }
+        });
 
         const devisDir = path.join(dataPath, PATHS.DEVIS_DIR);
         let existingDevisFiles = [];
@@ -107,20 +102,15 @@ async function getAllSeances(req, res) {
             const files = await fs.readdir(devisDir);
             existingDevisFiles = files.filter(file => file.endsWith('.json')).map(file => file.slice(0, -5));
         } catch (err) {
-            if (err.code !== 'ENOENT') {
-                console.warn(`Impossible de lire le répertoire des devis ${devisDir}: ${err.message}`);
-            }
+            if (err.code !== 'ENOENT') console.warn(`Impossible de lire le répertoire des devis ${devisDir}: ${err.message}`);
         }
 
-        for (let i = 0; i < seances.length; i++) {
-            const seance = seances[i];
-            if (seance.devis_number && seance.devis_number.trim() !== '') {
-                if (!existingDevisFiles.includes(seance.devis_number)) {
-                    seances[i].devis_number = null;
-                    tsvModified = true;
-                }
+        seances.forEach((seance, i) => {
+            if (seance.devis_number && seance.devis_number.trim() !== '' && !existingDevisFiles.includes(seance.devis_number)) {
+                seances[i].devis_number = null;
+                tsvModified = true;
             }
-        }
+        });
 
         if (tsvModified) {
             await Seance.saveAll(seances, dataPath);
@@ -135,7 +125,8 @@ async function getAllSeances(req, res) {
 
 async function getInvoiceStatus(req, res) { 
     const { invoiceNumber } = req.params;
-    const dataPath = getDataPath(authState.activeGoogleAuthTokens.userEmail);
+    const { userEmail } = req;
+    const dataPath = getDataPath(userEmail);
     try {
         const seance = await Seance.findByInvoiceNumber(invoiceNumber, dataPath);
         if (!seance) {
@@ -143,12 +134,7 @@ async function getInvoiceStatus(req, res) {
         }
 
         if (invoiceNumber.startsWith('DEV-')) {
-            res.json({ 
-                documentType: 'devis', 
-                statusText: 'DEVIS', 
-                seanceId: seance.id_seance, 
-                isFuture: new Date(seance.date_heure_seance) > new Date() 
-            });
+            res.json({ documentType: 'devis', statusText: 'DEVIS', seanceId: seance.id_seance, isFuture: new Date(seance.date_heure_seance) > new Date() });
         } else {
             let statusTextForWatermark = seance.statut_seance;
             if (seance.statut_seance === 'APAYER') statusTextForWatermark = 'À PAYER';
@@ -156,12 +142,7 @@ async function getInvoiceStatus(req, res) {
             else if (seance.statut_seance === 'ANNULEE') statusTextForWatermark = 'ANNULÉE';
             else if (seance.statut_seance === 'PLANIFIEE') statusTextForWatermark = 'PLANIFIÉE';
             
-            res.json({ 
-                documentType: 'invoice', 
-                statut_seance: seance.statut_seance, 
-                statusText: statusTextForWatermark, 
-                seanceId: seance.id_seance 
-            });
+            res.json({ documentType: 'invoice', statut_seance: seance.statut_seance, statusText: statusTextForWatermark, seanceId: seance.id_seance });
         }
     } catch (error) { 
         console.error(`Erreur API GET /api/invoice/:invoiceNumber/status pour ${invoiceNumber}:`, error.message);
@@ -170,12 +151,12 @@ async function getInvoiceStatus(req, res) {
 }
 
 async function createOrUpdateSeance(req, res) {
-    const dataPath = getDataPath(authState.activeGoogleAuthTokens.userEmail);
+    const { userEmail, oauth2Client, isDemo } = req;
+    const dataPath = getDataPath(userEmail);
     try {
         const seanceData = req.body;
         const client = await Client.findById(seanceData.id_client, dataPath);
         const tarif = await Tarif.findById(seanceData.id_tarif, dataPath);
-
         let seance = await Seance.findById(seanceData.id_seance, dataPath);
         const isNewSeance = !seance;
 
@@ -185,119 +166,94 @@ async function createOrUpdateSeance(req, res) {
             Object.assign(seance, seanceData);
         }
 
-        if (authState.oauth2Client && authState.activeGoogleAuthTokens.refreshToken && calendarHelper.isCalendarConfigured()) {
-            authState.oauth2Client.setCredentials({ refresh_token: authState.activeGoogleAuthTokens.refreshToken });
-
+        if (isDemo && oauth2Client && calendarHelper.isCalendarConfigured()) {
             try {
-                if (!authState.activeGoogleAuthTokens.accessToken ||
-                    (authState.activeGoogleAuthTokens.expiryDate && authState.activeGoogleAuthTokens.expiryDate < Date.now() + 60000)) {
-                    const { token, expiry_date } = await authState.oauth2Client.getAccessToken();
-                    authState.activeGoogleAuthTokens.accessToken = token;
-                    authState.activeGoogleAuthTokens.expiryDate = expiry_date;
-                    authState.oauth2Client.setCredentials({ ...authState.oauth2Client.credentials, access_token: token });
-                }
-
-                calendarHelper.setAuth(authState.oauth2Client);
+                calendarHelper.setAuth(oauth2Client);
                 const seanceDateTime = new Date(seance.date_heure_seance);
-                let dureeMinutes = tarif && tarif.duree ? parseInt(tarif.duree) : 60;
-                if (isNaN(dureeMinutes) || dureeMinutes <= 0) dureeMinutes = 60;
+                
+                let dureeMinutes = 60;
+                if (seanceData.duree_seance) {
+                    dureeMinutes = parseInt(seanceData.duree_seance, 10);
+                } else if (tarif && tarif.duree) {
+                    dureeMinutes = parseInt(tarif.duree, 10);
+                }
+                if (isNaN(dureeMinutes) || dureeMinutes <= 0) {
+                    dureeMinutes = 60;
+                }
 
                 const eventSummary = `Séance ${client ? client.prenom + ' ' + client.nom : 'Client'} (${tarif ? tarif.libelle : 'Tarif'})`;
                 const eventDescription = `Séance avec ${client ? client.prenom + ' ' + client.nom : 'un client'}.\nTarif: ${tarif ? tarif.libelle : 'N/A'}\nStatut: ${seance.statut_seance}`;
-                const settings = await readSettingsJson(authState.activeGoogleAuthTokens.userEmail);
+                const settings = await readSettingsJson(userEmail);
                 const calendarIdToUse = settings.googleCalendar.calendarId || 'primary';
 
                 if (isNewSeance && seance.statut_seance !== 'ANNULEE') {
-                    const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
+                    const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, userEmail);
                     seance.googleCalendarEventId = eventId;
-                } else if (!isNewSeance) { 
+                } else if (!isNewSeance) {
                     const existingEventId = seance.googleCalendarEventId;
                     if (seance.statut_seance === 'ANNULEE' && existingEventId) {
-                        await calendarHelper.deleteEvent(calendarIdToUse, existingEventId); 
+                        await calendarHelper.deleteEvent(calendarIdToUse, existingEventId);
                         seance.googleCalendarEventId = null;
-                    } else if (seance.statut_seance !== 'ANNULEE' && !existingEventId) { 
-                        const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
+                    } else if (seance.statut_seance !== 'ANNULEE' && !existingEventId) {
+                        const eventId = await calendarHelper.createEvent(calendarIdToUse, eventSummary, eventDescription, seanceDateTime, dureeMinutes, userEmail);
                         seance.googleCalendarEventId = eventId;
-                    } else if (seance.statut_seance !== 'ANNULEE' && existingEventId) { 
-                        await calendarHelper.updateEvent(calendarIdToUse, existingEventId, eventSummary, eventDescription, seanceDateTime, dureeMinutes, activeGoogleAuthTokens.userEmail);
+                    } else if (seance.statut_seance !== 'ANNULEE' && existingEventId) {
+                        await calendarHelper.updateEvent(calendarIdToUse, existingEventId, eventSummary, eventDescription, seanceDateTime, dureeMinutes, userEmail);
                     }
                 }
-            } catch (calError) { 
+            } catch (calError) {
                 console.error("Erreur interaction Google Calendar lors de la sauvegarde de séance:", calError.message);
             }
         }
-
         await Seance.create(seance, dataPath);
         res.status(200).json({ message: 'Séance enregistrée avec succès.', updatedSeance: seance });
-
     } catch (error) {
         console.error('Erreur API POST /api/seances :', error.message, error.stack);
         res.status(500).json({ message: `Erreur lors de la sauvegarde de la séance: ${error.message}` });
     }
 }
 
-async function deleteSeance(req, res) { 
-    const dataPath = getDataPath(authState.activeGoogleAuthTokens.userEmail);
+async function deleteSeance(req, res) {
+    const { userEmail, oauth2Client, isDemo } = req;
+    const dataPath = getDataPath(userEmail);
     try {
         const { id } = req.params;
         const seance = await Seance.findById(id, dataPath);
-        
-        if (!seance) {
-            return res.status(404).json({ message: 'Séance non trouvée' });
-        }
-        
-        if (seance.invoice_number) {
-            return res.status(400).json({ 
-                message: "Cette séance a été facturée et ne peut pas être supprimée directement." 
-            });
-        }
+        if (!seance) return res.status(404).json({ message: 'Séance non trouvée' });
+        if (seance.invoice_number) return res.status(400).json({ message: "Cette séance a été facturée et ne peut pas être supprimée directement." });
 
-        if (seance.googleCalendarEventId && authState.oauth2Client && authState.activeGoogleAuthTokens.refreshToken && calendarHelper.isCalendarConfigured()) {
-            authState.oauth2Client.setCredentials({ refresh_token: authState.activeGoogleAuthTokens.refreshToken });
-            
-            try { 
-                if (!authState.activeGoogleAuthTokens.accessToken || 
-                    (authState.activeGoogleAuthTokens.expiryDate && authState.activeGoogleAuthTokens.expiryDate < Date.now() + 60000)) {
-                    const { token } = await authState.oauth2Client.getAccessToken();
-                    authState.activeGoogleAuthTokens.accessToken = token;
-                    authState.oauth2Client.setCredentials({ ...authState.oauth2Client.credentials, access_token: token });
-                }
-
-                calendarHelper.setAuth(authState.oauth2Client);
-                const settings = await readSettingsJson(authState.activeGoogleAuthTokens.userEmail); 
+        if (seance.googleCalendarEventId && oauth2Client && calendarHelper.isCalendarConfigured() && !isDemo) {
+            try {
+                calendarHelper.setAuth(oauth2Client);
+                const settings = await readSettingsJson(userEmail);
                 const calendarIdToUse = settings.googleCalendar.calendarId || 'primary';
-                await calendarHelper.deleteEvent(calendarIdToUse, seance.googleCalendarEventId); 
-                console.log(`Événement calendrier ${seance.googleCalendarEventId} supprimé (suite à suppression séance).`);
-            } catch (calError) { 
-                console.warn(`Avertissement: Erreur lors de la suppression de l'événement calendrier ${seance.googleCalendarEventId}: ${calError.message}`);
+                await calendarHelper.deleteEvent(calendarIdToUse, seance.googleCalendarEventId);
+                console.log(`Événement calendrier ${seance.googleCalendarEventId} supprimé.`);
+            } catch (calError) {
+                console.warn(`Avertissement: Erreur suppression événement calendrier ${seance.googleCalendarEventId}: ${calError.message}`);
             }
         }
-        
-        if (seance.devis_number) { 
-            const devisDir = path.join(dataPath, PATHS.DEVIS_DIR);
-            const devisJsonPath = path.join(devisDir, `${seance.devis_number}.json`);
-            try { 
-                await fs.unlink(devisJsonPath); 
-                console.log(`Fichier devis ${seance.devis_number}.json supprimé.`); 
-            } catch (unlinkError) { 
-                if (unlinkError.code !== 'ENOENT') {
-                    console.warn(`Avertissement: Impossible de supprimer le fichier devis ${seance.devis_number}.json : ${unlinkError.message}`);
-                }
+        if (seance.devis_number) {
+            const devisJsonPath = path.join(dataPath, PATHS.DEVIS_DIR, `${seance.devis_number}.json`);
+            try {
+                await fs.unlink(devisJsonPath);
+                console.log(`Fichier devis ${seance.devis_number}.json supprimé.`);
+            } catch (unlinkError) {
+                if (unlinkError.code !== 'ENOENT') console.warn(`Avertissement: Impossible de supprimer le fichier devis ${seance.devis_number}.json : ${unlinkError.message}`);
             }
         }
-        
         await Seance.delete(id, dataPath);
         res.status(200).json({ message: 'Séance supprimée avec succès' });
-    } catch (error) { 
+    } catch (error) {
         console.error('Erreur API DELETE /api/seances/:id :', error.message);
-        res.status(500).json({ message: 'Erreur lors de la suppression de la séance' }); 
+        res.status(500).json({ message: 'Erreur lors de la suppression de la séance' });
     }
 }
 
-async function generateInvoice(req, res) { 
+async function generateInvoice(req, res) {
     const { seanceId } = req.params;
-    const dataPath = getDataPath(authState.activeGoogleAuthTokens.userEmail);
-    const factsDir = path.join(dataPath, PATHS.FACTS_DIR);
+    const { userEmail } = req;
+    const dataPath = getDataPath(userEmail);
     try {
         const seance = await Seance.findById(seanceId, dataPath);
         if (!seance) {
@@ -305,7 +261,7 @@ async function generateInvoice(req, res) {
         }
 
         if (seance.invoice_number) { 
-            const invoiceJsonPathCheck = path.join(factsDir, `${seance.invoice_number}.json`);
+            const invoiceJsonPathCheck = path.join(dataPath, PATHS.FACTS_DIR, `${seance.invoice_number}.json`);
             try {
                 await fs.access(invoiceJsonPathCheck);
                 return res.status(400).json({ 
@@ -355,8 +311,8 @@ async function generateInvoice(req, res) {
             legal: settings.legal || {},
         };        
         
-        await fs.mkdir(factsDir, { recursive: true }); 
-        const invoiceJsonPath = path.join(factsDir, `${invoiceNumber}.json`);
+        await fs.mkdir(path.join(dataPath, PATHS.FACTS_DIR), { recursive: true }); 
+        const invoiceJsonPath = path.join(dataPath, PATHS.FACTS_DIR, `${invoiceNumber}.json`);
         await fs.writeFile(invoiceJsonPath, JSON.stringify(invoiceData, null, 2), 'utf8');
         
         seance.invoice_number = invoiceNumber;
@@ -378,10 +334,10 @@ async function generateInvoice(req, res) {
     }
 }
 
-async function generateDevis(req, res) { 
+async function generateDevis(req, res) {
     const { seanceId } = req.params;
-    const dataPath = getDataPath(authState.activeGoogleAuthTokens.userEmail);
-    const devisDir = path.join(dataPath, PATHS.DEVIS_DIR);
+    const { userEmail } = req;
+    const dataPath = getDataPath(userEmail);
     try {
         const seance = await Seance.findById(seanceId, dataPath);
         if (!seance) {
@@ -395,7 +351,7 @@ async function generateDevis(req, res) {
         }
 
         if (seance.devis_number) { 
-            const devisJsonPathCheck = path.join(devisDir, `${seance.devis_number}.json`);
+            const devisJsonPathCheck = path.join(dataPath, PATHS.DEVIS_DIR, `${seance.devis_number}.json`);
             try {
                 await fs.access(devisJsonPathCheck);
                 return res.status(400).json({ 
@@ -422,7 +378,7 @@ async function generateDevis(req, res) {
             return res.status(404).json({ message: "Tarif associé à la séance non trouvé."});
         }
 
-        const settings = await readSettingsJson(authState.activeGoogleAuthTokens.userEmail);
+        const settings = await readSettingsJson(userEmail);
         const devisNumber = await getNextDevisNumber(dataPath);
         const devisGenerationDate = new Date().toISOString();
         
@@ -451,8 +407,8 @@ async function generateDevis(req, res) {
             legal: settings.legal || {}
         };        
         
-        await fs.mkdir(devisDir, { recursive: true }); 
-        const devisJsonPath = path.join(devisDir, `${devisNumber}.json`);
+        await fs.mkdir(path.join(dataPath, PATHS.DEVIS_DIR), { recursive: true }); 
+        const devisJsonPath = path.join(dataPath, PATHS.DEVIS_DIR, `${devisNumber}.json`);
         await fs.writeFile(devisJsonPath, JSON.stringify(devisData, null, 2), 'utf8');
         
         seance.devis_number = devisNumber;

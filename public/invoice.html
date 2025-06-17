@@ -108,7 +108,7 @@
         // MODIFIÉ: Utiliser l'origine actuelle pour l'API, mais pas pour les fichiers JSON directement.
         const APP_ORIGIN_FOR_INVOICE_PAGE = window.location.origin;
         // API_BASE_URL_FOR_INVOICE_PAGE est défini comme avant, mais sera utilisé pour les appels API.
-        const API_BASE_URL_FOR_INVOICE_PAGE = `${APP_ORIGIN_FOR_INVOICE_PAGE}:3000/api`; 
+        const API_BASE_URL_FOR_INVOICE_PAGE = `${APP_ORIGIN_FOR_INVOICE_PAGE}/api`; 
 
         function getUrlParameter(name) {
             const urlParams = new URLSearchParams(window.location.search);

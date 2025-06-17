@@ -1,13 +1,14 @@
 // controllers/documentController.js
 const { getDataPath } = require('../helpers/fileHelper');
-const { authState } = require('./authController');
-const { PATHS } = require('../config/constants');
-const fs = require('fs').promises;
 const path = require('path');
+const fs = require('fs').promises;
+const { PATHS } = require('../config/constants');
 
 async function getInvoiceJson(req, res) {
     const { invoiceNumber } = req.params;
-    const dataPath = getDataPath(authState.activeGoogleAuthTokens.userEmail);
+    // On récupère l'email de l'utilisateur authentifié depuis la requête
+    const { userEmail } = req; 
+    const dataPath = getDataPath(userEmail);
 
     if (!/^FAC-\d{4}-\d{4,}$/.test(invoiceNumber)) {
         return res.status(400).send('Numéro de facture invalide.');
@@ -16,7 +17,6 @@ async function getInvoiceJson(req, res) {
     const filePath = path.join(factsDir, `${invoiceNumber}.json`);
     try {
         await fs.access(filePath);
-        // Important: Utiliser path.resolve pour obtenir un chemin absolu pour res.sendFile
         res.sendFile(path.resolve(filePath));
     } catch (error) {
         if (error.code === 'ENOENT') {
@@ -30,7 +30,10 @@ async function getInvoiceJson(req, res) {
 
 async function getDevisJson(req, res) {
     const { devisNumber } = req.params;
-    const dataPath = getDataPath(authState.activeGoogleAuthTokens.userEmail);
+    // On récupère l'email de l'utilisateur authentifié depuis la requête
+    const { userEmail } = req;
+    const dataPath = getDataPath(userEmail);
+
      if (!/^DEV-\d{4}-\d{4,}$/.test(devisNumber)) {
         return res.status(400).send('Numéro de devis invalide.');
     }
@@ -38,7 +41,6 @@ async function getDevisJson(req, res) {
     const filePath = path.join(devisDir, `${devisNumber}.json`);
     try {
         await fs.access(filePath);
-        // Important: Utiliser path.resolve pour obtenir un chemin absolu pour res.sendFile
         res.sendFile(path.resolve(filePath));
     } catch (error) {
         if (error.code === 'ENOENT') {

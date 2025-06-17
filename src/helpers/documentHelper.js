@@ -1,5 +1,7 @@
+// helpers/documentHelper.js
 const { jsPDF } = require("jspdf");
-require('jspdf-autotable');
+// On importe explicitement la fonction autoTable du plugin
+const autoTable = require('jspdf-autotable').default;
 
 function generatePdfWithJspdf(data) {
     const doc = new jsPDF();
@@ -19,15 +21,13 @@ function generatePdfWithJspdf(data) {
     const legal = data.legal || {};
     
     // --- Entête ---
-    doc.setFontSize(10);
+doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text(manager.name || 'Nom du gestionnaire', margin, cursorY);
     cursorY += 5;
     doc.setFont('helvetica', 'normal');
     if(manager.title) { doc.text(manager.title, margin, cursorY); cursorY += 5; }
-    if(manager.description) { doc.text(manager.description, margin, cursorY); cursorY += 5; }
-    if(manager.address) { doc.text(manager.address, margin, cursorY); cursorY += 5; }
-    if(manager.city) { doc.text(manager.city, margin, cursorY); cursorY += 5; }
+    if(manager.address) { doc.text(`${manager.address}, ${manager.city || ''}`, margin, cursorY); cursorY += 5; }
     if(manager.phone) { doc.text(`Téléphone : ${manager.phone}`, margin, cursorY); cursorY += 5; }
     if(manager.email) { doc.text(`Email : ${manager.email}`, margin, cursorY); cursorY += 5; }
     
@@ -40,8 +40,6 @@ function generatePdfWithJspdf(data) {
     doc.text(`${dueDateLabel} ${effectiveDueDateOrValidity}`, 210 - margin, cursorY, { align: 'right' });
     
     cursorY = Math.max(initialCursorY, cursorY) + 15;
-
-    // --- Titre du document ---
     doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
     doc.text(docTitle, 105, cursorY, { align: 'center' });
@@ -49,8 +47,6 @@ function generatePdfWithJspdf(data) {
     doc.setFontSize(12);
     doc.text(`${isDevis ? 'Devis N°' : 'Facture N°'} : ${docNumber}`, 105, cursorY, { align: 'center' });
     cursorY += 15;
-
-    // --- Informations Client ---
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.text(clientLabel, margin, cursorY);
@@ -72,7 +68,8 @@ function generatePdfWithJspdf(data) {
         formatCurrency((item.quantity || 1) * (item.unitPrice || 0))
     ]);
 
-    doc.autoTable({
+    // MODIFICATION : On appelle autoTable(doc, ...) au lieu de doc.autoTable(...)
+    autoTable(doc, {
         startY: cursorY,
         head: [['Date', 'Description', 'Qté', 'P.U. HT', 'Total HT']],
         body: tableBody,
@@ -83,10 +80,14 @@ function generatePdfWithJspdf(data) {
             2: { halign: 'right' },
             3: { halign: 'right' },
             4: { halign: 'right' }
+        },
+        // 'didDrawPage' est utilisé pour mettre à jour la position Y après le tableau
+        didDrawPage: (data) => {
+            cursorY = data.cursor.y;
         }
     });
 
-    cursorY = doc.autoTable.previous.finalY + 10;
+    cursorY += 10;
 
     // --- Tableau des totaux ---
     const tvaRate = parseFloat(data.tva) || 0;
@@ -94,7 +95,8 @@ function generatePdfWithJspdf(data) {
     const tvaAmount = total_ht * (tvaRate / 100);
     const total_ttc = total_ht + tvaAmount;
 
-    doc.autoTable({
+    // MODIFICATION : On appelle autoTable(doc, ...) ici aussi
+    autoTable(doc, {
         startY: cursorY,
         body: [
             ['Total HT', formatCurrency(total_ht)],
@@ -108,16 +110,19 @@ function generatePdfWithJspdf(data) {
              0: { halign: 'right', fontStyle: 'bold' },
              1: { halign: 'right' }
         },
-        margin: { left: 115 }
+        margin: { left: 115 },
+        didDrawPage: (data) => {
+            cursorY = data.cursor.y;
+        }
     });
-    
-    cursorY = doc.autoTable.previous.finalY;
-    
+
     // --- Montant à régler ---
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     const paymentLabel = isDevis ? "MONTANT TOTAL DU DEVIS :" : "MONTANT À RÉGLER :";
     doc.text(`${paymentLabel} ${formatCurrency(total_ttc)}`, 210 - margin, cursorY + 10, { align: 'right' });
+    
+
     
     
     // --- Pied de page / Mentions légales ---

@@ -2,6 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const cookieParser = require('cookie-parser');
 const { loadAndInitializeOAuthClient, authState } = require('./controllers/authController'); // Importer authState
 const { exit } = require('process');
 const defaultPort = 3000;
@@ -11,6 +12,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(cookieParser());
 
 require('./routes')(app);
 

@@ -176,7 +176,14 @@ export async function saveSettings(settingsData) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Échec de la sauvegarde des paramètres');
     }
-    return response.json();
+    const result = await response.json();
+    
+    // S'assurer que les infos OAuth sont présentes dans la réponse
+    if (!result.googleOAuth && state.appSettings.googleOAuth) {
+        result.googleOAuth = state.appSettings.googleOAuth;
+    }
+    
+    return result;
 }
 
 export async function disconnectGoogleAccount() {

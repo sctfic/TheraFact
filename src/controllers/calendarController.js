@@ -1,16 +1,17 @@
 // controllers/calendarController.js
-const { authState } = require('./authController');
 const { google } = require('googleapis');
 
 async function getCalendarAvailability(req, res) {
-    console.log("Appel reçu sur /api/calendar/availability");
-    if (!authState.oauth2Client || !authState.activeGoogleAuthTokens.refreshToken) {
-        console.warn("Tentative de récupération des disponibilités sans connexion Google.");
-        return res.status(401).json({ message: "Le compte Google n'est pas connecté sur le serveur." });
+    const { oauth2Client, isDemo } = req;
+
+    // Si on est en mode démo, on renvoie une réponse vide sans contacter Google.
+    if (isDemo) {
+        console.log("Mode démo : renvoi d'une liste de disponibilités vide.");
+        return res.status(200).json([]);
     }
 
     try {
-        const calendar = google.calendar({ version: 'v3', auth: authState.oauth2Client });
+        const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
         const calendarId = 'primary';
         const timeMin = new Date();
         const timeMax = new Date();

@@ -11,8 +11,7 @@
     "express": "^4.21.2",
     "googleapis": "^149.0.0",
     "jspdf": "^2.5.1",
-    "jspdf-autotable": "^3.8.2",
-    "nodemailer": "^7.0.3"
+    "jspdf-autotable": "^3.8.2"
   },
   "author": "Alban LOPEZ",
   "license": "MIT"

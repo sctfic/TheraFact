@@ -274,26 +274,15 @@
                     <div class="form-group"><label for="configManagerTitle">Titre/Profession :</label><input type="text" id="configManagerTitle"></div>
                     <div class="form-group form-row"><label for="configManagerDescription">Description (activité) :</label><textarea id="configManagerDescription" rows="2"></textarea></div>
                     <div class="form-group"><label for="configManagerPhone">Téléphone :</label><input type="tel" id="configManagerPhone"></div>
-                    <div class="form-group"><label for="configManagerEmailContact">Email de contact (affiché sur factures) :</label><input type="email" id="configManagerEmailContact"></div>
+                    <div class="form-group"><label for="configManagerEmailContact">Email de contact (affiché sur factures)</label><input type="email" id="configManagerEmailContact"></div>
                     <div class="form-group form-row"><label for="configManagerAddress">Adresse :</label><input type="text" id="configManagerAddress"></div>
                     <div class="form-group"><label for="configManagerCity">Ville :</label><input type="text" id="configManagerCity"></div>
                 </div>
-
-                <h3>Connexion Compte Google (pour Email & Calendrier)</h3>
-                <div id="googleAuthStatusContainer" class="form-container" style="padding: 1rem; border: 1px solid #eee; margin-bottom:1.5rem;">
-                    <p id="googleAuthStatusText">État de la connexion : Vérification...</p>
-                    <div id="googleAuthScopes" style="font-size: 0.9em; margin-top: 0.5rem;"></div>
-                    <button type="button" id="btnConnectGoogle" class="btn btn-primary" style="margin-right: 10px;">Connecter mon compte Google</button>
-                    <button type="button" id="btnDisconnectGoogle" class="btn btn-danger" style="display:none;">Déconnecter mon compte Google</button>
-                </div>
-                
                 <div class="form-group">
                     <label for="configGoogleCalendarId">ID du Calendrier Google à utiliser :</label>
                     <input type="text" id="configGoogleCalendarId" placeholder="primary (pour le calendrier principal)">
                     <small>Laissez "primary" pour utiliser le calendrier principal du compte Google connecté, ou spécifiez un ID de calendrier personnalisé.</small>
                 </div>
-
-
                 <h3>Paramètres Financiers</h3>
                 <div class="form-grid config-grid">
                     <div class="form-group"><label for="configTva">Taux de TVA (%) :</label><input type="number" id="configTva" step="0.1" min="0"></div>
@@ -317,6 +306,14 @@
 
                 <div class="form-actions" style="margin-top: 2rem;">
                     <button type="submit" class="btn btn-success">Enregistrer la Configuration</button>
+                </div>
+
+                <h3>Connexion Compte Google (pour Email & Calendrier & Sheets)</h3>
+                <div id="googleAuthStatusContainer" class="form-container" style="padding: 1rem; border: 1px solid #eee; margin-bottom:1.5rem;">
+                    <p id="googleAuthStatusText">État de la connexion : Vérification...</p>
+                    <div id="googleAuthScopes" style="font-size: 0.9em; margin-top: 0.5rem;"></div>
+                    <button type="button" id="btnConnectGoogle" class="btn btn-primary" style="margin-right: 10px;">Connecter mon compte Google</button>
+                    <button type="button" id="btnDisconnectGoogle" class="btn btn-danger" style="display:none;">Déconnecter mon compte Google</button>
                 </div>
             </form>
         </section>
