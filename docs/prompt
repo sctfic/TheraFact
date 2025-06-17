@@ -1,0 +1,33 @@
+je vais te fournir les fichiers suivant afin d'ameliorer mon code et develloper de nouvelle fontionnalitées
+server.js
+public/css/buttons.css
+public/css/components.css
+public/css/forms.css
+public/css/global.css
+public/css/modals.css
+public/css/tables.css
+public/index.html
+public/invoice.html
+public/js/api.js
+public/js/clients.js
+public/js/config.js
+public/js/dashboard.js
+public/js/dom.js
+public/js/main.js
+public/js/modal.js
+public/js/navigation.js
+public/js/seances.js
+public/js/state.js
+public/js/tarifs.js
+public/js/uiHelpers.js
+public/js/utils.js
+je voudrai ameliorer le rendu sur smartphone 
+ - la navbarre deborde de l'ecran, il faudrait qu'elle soit plus compacte et s'adapte a la largeur de l'ecran et laisser une place a gauche pour le bouton fullscreen 
+ - le voudrai que le champ Telephone copose directement le numero 
+ - les date s'afficheron en tres petit et sur 2 ligne si il y a une heure a afficher l'heure
+
+
+
+je voudrai testeé toute les 30 secondes quel est l'age du dernier appel a /api/seances , si l'age est superieur a 10 minutes, alors il faut recharger les seances
+
+la dernire barre passe devant l'axe de droite, il faudrait definir une zonne de tracé pour les donnée

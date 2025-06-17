@@ -1,0 +1,14 @@
+dans un premier temps je voudrais ajouter une authentification via le compte google, l'adresse de ce compte sera utilisé comme dossier dans data/ tous les document json et tsv de data seront daplacé dans ce dossier ainsi il y aura un dossier par utilisateur. sans authentification ce sera juste une demo (dossier data/demo/)
+
+refaire totalement le graphique axeX date
+Authentification Login:Mdp
+user repertoire par Login
+
+Structure du Fichier server.js, Séparez les responsabilités pour une meilleure lisibilité.
+Créez un dossier routes (ex: routes/clients.js, routes/seances.js). Chaque fichier contiendra les endpoints pour une ressource spécifique.
+Le fichier principal server.js se contentera de charger la configuration, de se connecter à la base de données et d'attacher les routeurs.
+
+
+Rendu des listes (Tables), Utilisez l'élément <template> en HTML pour un rendu plus propre et efficace.
+
+Vue Calendrier pour les Séances,  Intégrez une bibliothèque de calendrier JavaScript. FullCalendar.io est une excellente option, très puissante et bien documentée.
