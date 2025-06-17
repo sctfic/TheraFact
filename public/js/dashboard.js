@@ -1,6 +1,8 @@
 // js/dashboard.js
 import * as dom from './dom.js';
 import * as state from './state.js';
+import * as api from './api.js';
+import { showToast } from './utils.js';
 
 function getPeriodStartDate(dateStr, periodType) {
     if (!dateStr) return null;
@@ -555,5 +557,24 @@ export function initializeDashboard() {
     if (dom.chartPeriodSelector) {
         dom.chartPeriodSelector.addEventListener('change', displaySessionsTrendChart);
     }
-    // updateDashboardStats sera appelé par switchView ou après les fetchs
+    const exportBtn = document.getElementById('exportToSheetsBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportToGoogleSheets);
+    }
+}
+async function exportToGoogleSheets() {
+    try {
+        showToast('Préparation de l\'export vers Google Sheets...', 'info');
+        
+        const response = await api.exportToGoogleSheets();
+        if (response.spreadsheetUrl) {
+            window.open(response.spreadsheetUrl, '_blank');
+            showToast('Fichier Google Sheets créé avec succès!', 'success');
+        } else {
+            throw new Error('URL du fichier non reçue');
+        }
+    } catch (error) {
+        showToast(`Erreur lors de l'export: ${error.message}`, 'error');
+        console.error('Erreur exportToGoogleSheets:', error);
+    }
 }

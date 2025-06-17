@@ -190,12 +190,27 @@ export async function disconnectGoogleAccount() {
     const response = await fetch(`${API_BASE_URL}/auth/google/disconnect`, { method: 'POST' });
     const result = await response.json();
     if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Échec de la déconnexion.');
+        throw new Error(result.message || 'Échec de la déconnexion du compte Google');
     }
     return result;
 }
-// Fichier : js/api.js
-// Ajoutez cette nouvelle fonction à la fin du fichier
+
+export async function updateSpreadsheet() {
+    const response = await fetch('/api/spreadsheet/update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Échec de la mise à jour du tableur');
+    }
+
+    return response.json();
+}
 
 export async function fetchCalendarAvailability() {
     // Vérifie si l'utilisateur est connecté à Google avant de faire l'appel
@@ -216,5 +231,12 @@ export async function fetchCalendarAvailability() {
         return []; // Retourne un tableau vide en cas d'erreur
     }
 }
-// La fonction populateTarifDropdowns a été déplacée vers uiHelpers.js
-// et est importée en haut de ce fichier.
+export async function exportToGoogleSheets() {
+    const response = await fetch(`${API_BASE_URL}/export-to-sheets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Échec de l\'export vers Google Sheets');
+    return result;
+}
