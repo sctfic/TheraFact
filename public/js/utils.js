@@ -1,4 +1,46 @@
-// js/utils.js
+// public/js/utils.js
+import * as dom from './dom.js';
+
+export function showDemoAlert() {
+    if (document.querySelector('.demo-modal')) return;
+
+    const modal = document.createElement('div');
+    modal.className = 'demo-modal';
+    modal.innerHTML = `
+        <div class="demo-modal-content">
+            <h3>Action non disponible en mode DEMO</h3>
+            <p>Cette fonctionnalité nécessite une connexion à un compte Google. Veuillez vous connecter via l'onglet "Config".</p>
+            <div style="display: flex; justify-content: center; gap: 10px; margin-top: 1rem;">
+                <button id="demoModalClose" class="btn btn-primary">Fermer</button>
+                <button id="demoModalConnect" class="btn btn-success">Se connecter</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // MODIFIÉ : Utilisation de la référence depuis dom.js
+    if (dom.currentDataFolder) {
+        dom.currentDataFolder.classList.add('animating-demo');
+    }
+
+    const closeModalAndAnimation = () => {
+        modal.remove();
+        if (dom.currentDataFolder) {
+            dom.currentDataFolder.classList.remove('animating-demo');
+        }
+    };
+
+    document.getElementById('demoModalClose').addEventListener('click', closeModalAndAnimation);
+    
+    document.getElementById('demoModalConnect').addEventListener('click', () => {
+        closeModalAndAnimation();
+        // Simule un clic pour aller à l'onglet config, puis sur le bouton de connexion
+        if (dom.navConfig) dom.navConfig.click();
+        if (dom.btnConnectGoogle) dom.btnConnectGoogle.click();
+    });
+}
+
+
 export function generateUUID() {
     return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
         (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
@@ -45,13 +87,8 @@ export function showToast(message, type = 'info') {
 }
 
 export function getApiBaseUrl() {
-    // Utiliser l'origine actuelle de la fenêtre pour construire les URLs de base
-    // Cela suppose que votre serveur API tourne sur le même domaine/port ou que vous avez un proxy.
-    // Si le port est différent (ex: 3000 pour le serveur Node.js), vous devez le gérer.
-    // Pour l'instant, nous allons supposer que le port 3000 est toujours nécessaire pour l'API.
-    const appBaseUrl = window.location.origin; // ex: http://fact.lpz.ovh ou http://localhost:xxxx
-    // on ajoute le port defini pour l'API en variable d'environnement
-    return `${appBaseUrl.replace(/:\d+$/, '')}/api`; // Assure que le port est 3000 pour l'API
+    const appBaseUrl = window.location.origin;
+    return `${appBaseUrl.replace(/:\d+$/, '')}/api`;
 }
 
 export function getAppBaseUrl() {

@@ -56,31 +56,8 @@
     background-color: #f9f9f9;
     position: relative;
     margin-bottom: 1rem;
+    overflow: hidden; /* Cache tout débordement par défaut */
 }
-
-.chart-container svg {
-    display: block;
-    margin: 0 auto;
-}
-
-.axis path,
-.axis line {
-    fill: none;
-    stroke: #333;
-    shape-rendering: crispEdges;
-}
-
-.axis text {
-    font-size: 0.8rem;
-    fill: #333;
-}
-
-.line {
-    fill: none;
-    stroke-width: 2px;
-}
-
-.dot {} /* Pour les points sur la ligne du graphique si besoin */
 
 /* Info-bulle pour le graphique */
 .chart-tooltip {
@@ -121,6 +98,60 @@
 #googleAuthScopes li {
     margin-bottom: 0.2rem;
 }
+
+#dataStatusBar {
+    position: absolute;
+    top: 46px;
+    left: 50%;
+    transform: translateX(-50%);
+    /* background-color: #3f464d; /*Légèrement différent pour se détacher */
+    color: white;
+    padding: 6px 18px;
+    /* font-size: 0.82rem; */
+    text-align: center;
+    z-index: 2;
+    border-radius: 0 0 8px 8px; /* Coins inférieurs arrondis */
+    /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); */
+    /* border: 1px solid #555; */
+    border-top: none;
+    min-width: 280px;
+}
+
+#currentDataFolder {
+    display: inline-block; /* MODIFIÉ : Nécessaire pour que transform:scale fonctionne */
+    font-weight: bold;
+    color: #ffc107; /* Jaune/Or pour le mode DEMO */
+    transition: all 0.3s ease;
+}
+
+@keyframes pulse-demo-warning {
+    0%, 100% {
+        /* transform: scale(1); */
+        color: #ffc107;
+    }
+    50% {
+        /* transform: scale(1.15); */
+        font-size: 1.2em;;
+        color: #e74c3c; /* Rouge */
+    }
+}
+
+#currentDataFolder.animating-demo {
+    animation: pulse-demo-warning 1.8s infinite ease-in-out;
+}
+
+/* Quand connecté */
+.authenticated #currentDataFolder {
+    color: #4caf50; /* Vert pour le mode connecté */
+}
+
+/* Nouvelle classe pour activer le défilement */
+.chart-container.scrollable {
+    overflow-x: auto;  /* Active le défilelement horizontal UNIQUEMENT si cette classe est présente */
+    scroll-behavior: smooth; /* Optionnel: pour un défilement plus fluide */
+}
+
+
 @media (max-width: 768px) {
     .dashboard-row li {
         font-size: 0.9em; /* Ajustement de la taille de police pour les petits écrans */
@@ -131,23 +162,4 @@
     .dashboard-row li {
         font-size: 0.8em; /* Ajustement de la taille de police pour les petits écrans */
     }
-}
-
-
-
-
-.chart-container {
-    width: 100%;
-    min-height: 260px;
-    border: 1px solid #eee;
-    background-color: #f9f9f9;
-    position: relative;
-    margin-bottom: 1rem;
-    overflow: hidden; /* Cache tout débordement par défaut */
-}
-
-/* Nouvelle classe pour activer le défilement */
-.chart-container.scrollable {
-    overflow-x: auto;  /* Active le défilement horizontal UNIQUEMENT si cette classe est présente */
-    scroll-behavior: smooth; /* Optionnel: pour un défilement plus fluide */
 }

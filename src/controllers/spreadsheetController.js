@@ -1,8 +1,11 @@
+// src/controllers/spreadsheetController.js
 const { google } = require('googleapis');
-const { readSettingsJson, getDataPath } = require('../helpers/fileHelper');
+const { getDataPath } = require('../helpers/fileHelper');
 const { PATHS } = require('../config/constants');
-const fs = require('fs').promises;
-const path = require('path');
+// MODIFIÉ : Import des modèles pour lire les données correctement
+const Client = require('../models/Client');
+const Seance = require('../models/Seance');
+const Tarif = require('../models/Tarif');
 
 async function updateSpreadsheet(req, res) {
     const { oauth2Client, userEmail } = req;
@@ -29,17 +32,14 @@ async function updateSpreadsheet(req, res) {
             spreadsheetId = spreadsheet.data.spreadsheetId;
         }
 
-        // 2. Get data paths
+        // 2. Get data path
         const dataPath = getDataPath(userEmail);
-        const clientsPath = path.join(dataPath, PATHS.CLIENTS_FILE);
-        const seancesPath = path.join(dataPath, PATHS.SEANCES_FILE);
-        const tarifsPath = path.join(dataPath, PATHS.TARIFS_FILE);
-
-        // 3. Read data files
+        
+        // 3. MODIFIÉ : Lire les données en utilisant les modèles au lieu de fs.readFile et JSON.parse
         const [clientsData, seancesData, tarifsData] = await Promise.all([
-            fs.readFile(clientsPath, 'utf8').then(JSON.parse),
-            fs.readFile(seancesPath, 'utf8').then(JSON.parse),
-            fs.readFile(tarifsPath, 'utf8').then(JSON.parse)
+            Client.findAll(dataPath),
+            Seance.findAll(dataPath),
+            Tarif.findAll(dataPath)
         ]);
 
         // 4. Update sheets
@@ -60,73 +60,79 @@ async function updateSpreadsheet(req, res) {
 }
 
 async function updateSheet(sheets, spreadsheetId, sheetName, data) {
-    if (!data || data.length === 0) return;
+    if (!data || data.length === 0) {
+        // Si pas de données, on s'assure que la feuille existe et on la vide.
+        try {
+            const sheetId = await getSheetId(sheets, spreadsheetId, sheetName);
+            if(sheetId !== null) {
+                await sheets.spreadsheets.values.clear({
+                    spreadsheetId,
+                    range: sheetName,
+                });
+            }
+        } catch (error) {
+            // La feuille n'existe probablement pas, ce qui n'est pas une erreur ici.
+        }
+        return;
+    }
 
-    // Clear existing sheet or create new one
+    const headers = Object.keys(data[0]);
+    const values = [
+        headers,
+        ...data.map(item => headers.map(header => item[header] === null || item[header] === undefined ? '' : item[header]))
+    ];
+
     try {
-        await sheets.spreadsheets.values.clear({
+        await sheets.spreadsheets.values.update({
             spreadsheetId,
-            range: sheetName,
+            range: `${sheetName}!A1`,
+            valueInputOption: 'USER_ENTERED',
+            resource: { values }
         });
     } catch (error) {
-        // If sheet doesn't exist, create it
+        // Si la feuille n'existe pas, on la crée puis on réessaie d'écrire
+        if (error.code === 400 && error.errors[0].message.includes('Unable to parse range')) {
+             await sheets.spreadsheets.batchUpdate({
+                spreadsheetId,
+                resource: { requests: [{ addSheet: { properties: { title: sheetName } } }] }
+            });
+            await sheets.spreadsheets.values.update({
+                spreadsheetId,
+                range: `${sheetName}!A1`,
+                valueInputOption: 'USER_ENTERED',
+                resource: { values }
+            });
+        } else {
+            throw error;
+        }
+    }
+
+    // Format header row
+    const sheetId = await getSheetId(sheets, spreadsheetId, sheetName);
+    if (sheetId !== null) {
         await sheets.spreadsheets.batchUpdate({
             spreadsheetId,
             resource: {
                 requests: [{
-                    addSheet: {
-                        properties: {
-                            title: sheetName
-                        }
+                    repeatCell: {
+                        range: { sheetId: sheetId, startRowIndex: 0, endRowIndex: 1 },
+                        cell: { userEnteredFormat: { backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 }, textFormat: { bold: true } } },
+                        fields: "userEnteredFormat(backgroundColor,textFormat)"
                     }
                 }]
             }
         });
     }
-
-    // Prepare headers and values
-    const headers = Object.keys(data[0]);
-    const values = [
-        headers,
-        ...data.map(item => headers.map(header => item[header] || ''))
-    ];
-
-    // Write data
-    await sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range: `${sheetName}!A1`,
-        valueInputOption: 'USER_ENTERED',
-        resource: { values }
-    });
-
-    // Format header row
-    await sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        resource: {
-            requests: [{
-                repeatCell: {
-                    range: {
-                        sheetId: await getSheetId(sheets, spreadsheetId, sheetName),
-                        startRowIndex: 0,
-                        endRowIndex: 1
-                    },
-                    cell: {
-                        userEnteredFormat: {
-                            backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 },
-                            textFormat: { bold: true }
-                        }
-                    },
-                    fields: "userEnteredFormat(backgroundColor,textFormat)"
-                }
-            }]
-        }
-    });
 }
 
 async function getSheetId(sheets, spreadsheetId, sheetName) {
-    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
-    const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
-    return sheet.properties.sheetId;
+    try {
+        const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
+        const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
+        return sheet ? sheet.properties.sheetId : null;
+    } catch(e) {
+        return null;
+    }
 }
 
 module.exports = { updateSpreadsheet };

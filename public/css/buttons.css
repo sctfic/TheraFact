@@ -187,3 +187,49 @@ nav button.nav-btn.active {
     }
      /* If you enable overflow-x: auto; on nav for 768px, it applies here too */
 }
+.export-sheets-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.export-sheets-btn:hover {
+    background-color: #e9ecef;
+}
+
+.export-sheets-btn:hover .rebond {
+    animation: rebondAnimation 0.5s ease;
+}
+
+.export-sheets-btn span {
+    font-weight: 500;
+    color: #202124;
+}
+/* Animation pour l'icône Google Sheets */
+.sheets-icon {
+    width: 24px; /* Taille raisonnable */
+    height: 24px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    filter: brightness(0.9); /* Légèrement assombrie par défaut */
+}
+
+.sheets-icon:hover {
+    animation: sheetsBounce 0.5s ease;
+    filter: brightness(1) drop-shadow(0 0 4px rgba(66, 133, 244, 0.4));
+    transform: scale(1.1);
+}
+
+@keyframes sheetsBounce {
+    0%, 100% {
+        transform: scale(1.1);
+    }
+    50% {
+        transform: scale(1.3);
+    }
+}

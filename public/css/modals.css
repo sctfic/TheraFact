@@ -45,3 +45,36 @@
 .modal-footer .btn { 
     margin-left: 0.3rem; 
 }
+.demo-modal {
+    position: fixed; /* Position fixe pour couvrir tout l'écran */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6); /* Fond semi-transparent */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000; /* Assure qu'elle est au-dessus de tout */
+    animation: fadeInModal 0.3s;
+}
+
+.demo-modal-content {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 8px;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.25);
+}
+
+@keyframes fadeInModal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+
+.demo-modal-content h3 {
+    color: #d32f2f;
+    margin-top: 0;
+}

@@ -1,8 +1,9 @@
-// js/seances.js
+// public/js/seances.js
 import * as dom from './dom.js';
 import * as state from './state.js';
 import * as api from './api.js';
-import { showToast, generateUUID, getAppBaseUrl } from './utils.js';
+// MODIFIÉ : Import de la fonction d'alerte
+import { showToast, generateUUID, getAppBaseUrl, showDemoAlert } from './utils.js';
 import { openDeleteModal } from './modal.js';
 import { populateTarifDropdowns } from './uiHelpers.js';
 
@@ -72,14 +73,20 @@ function resetAndOpenSeanceForm(seanceId = null) {
     }
 
     populateTarifDropdowns(); 
-// Cacher les anciennes disponibilités et afficher "chargement"
+    // Cacher les anciennes disponibilités et afficher "chargement"
     if (dom.availabilityInfoContainer) dom.availabilityInfoContainer.classList.add('hidden');
     if (dom.availabilityList) dom.availabilityList.innerHTML = '<li>Chargement des disponibilités...</li>';
     
-    // Appeler l'API pour récupérer les disponibilités et les afficher
-    api.fetchCalendarAvailability().then(busySlots => {
-        renderAvailability(busySlots);
-    });
+    // MODIFIÉ : Protection de l'appel aux disponibilités du calendrier
+    if (!state.appSettings.googleOAuth.isConnected) {
+        if (dom.availabilityList) dom.availabilityList.innerHTML = '<li>La connexion à Google est requise pour voir les disponibilités.</li>';
+        if (dom.availabilityInfoContainer) dom.availabilityInfoContainer.classList.remove('hidden');
+    } else {
+        // Appeler l'API pour récupérer les disponibilités et les afficher
+        api.fetchCalendarAvailability().then(busySlots => {
+            renderAvailability(busySlots);
+        });
+    }
 
     if (seanceId) {
         const seance = state.seances.find(s => s.id_seance === seanceId);
@@ -205,15 +212,8 @@ async function handleSeanceFormSubmit(event) {
         return; 
     }
 
-    // --- DÉBUT DE LA MODIFICATION ---
-
-    // 1. Retrouver l'objet tarif complet à partir de son ID
     const selectedTarif = state.tarifs.find(t => t.id === idTarif);
-    
-    // 2. Extraire la durée (en prévoyant le cas où elle ne serait pas définie)
     const dureeSeance = selectedTarif ? selectedTarif.duree : null;
-
-    // --- FIN DE LA MODIFICATION ---
 
     const montant = parseFloat(dom.seanceMontantInput.value);
     if (isNaN(montant)) { 
@@ -226,7 +226,7 @@ async function handleSeanceFormSubmit(event) {
         id_client: idClient,
         date_heure_seance: dom.seanceDateElement.value,
         id_tarif: idTarif,
-        duree_seance: dureeSeance, // 3. AJOUTER LA DURÉE ICI
+        duree_seance: dureeSeance,
         montant_facture: montant,
         statut_seance: dom.seanceStatutSelect.value,
         mode_paiement: dom.seanceStatutSelect.value === 'PAYEE' ? (dom.seanceModePaiementSelect.value || null) : null,
@@ -286,9 +286,6 @@ export function renderSeancesTable() {
             const d = new Date(seance.date_heure_seance);
             const datePart = d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'});
             const timePart = d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
-            
-            // Simple approach: Date and Time on separate "lines" using <br>
-            // This requires the cell to render HTML.
             dateCell.innerHTML = `${datePart}<br>${timePart}`;
         } else {
             dateCell.textContent = '-';
@@ -438,53 +435,72 @@ async function handleGenerateDevis(seanceId) {
 }
 
 async function handleSendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
-    if (state.currentlyEditingRow && state.currentlyEditingRow.dataset.seanceId === seanceId) {
-        const currentSeance = state.seances.find(s => s.id_seance === seanceId);
-        if (currentSeance) await saveRowChanges(state.currentlyEditingRow, currentSeance);
+    // MODIFIÉ : Récupérer la séance complète
+    const seance = state.seances.find(s => s.id_seance === seanceId);
+    if (!seance) {
+        showToast("Séance non trouvée.", "error");
+        return;
     }
-    if (!state.appSettings.googleOAuth || !state.appSettings.googleOAuth.isConnected) {
-        showToast("Veuillez connecter un compte Google dans la configuration pour envoyer des emails.", "warning"); return;
-    }
-    let emailToSendTo = clientEmail;
-    if (!emailToSendTo) {
-        const clientForSeance = state.clients.find(c => c.id === state.seances.find(s => s.id_seance === seanceId)?.id_client);
-        if (clientForSeance && clientForSeance.email) {
-            emailToSendTo = clientForSeance.email;
-        } else {
-            showToast(`Email pour ${clientForSeance ? clientForSeance.prenom + ' ' + clientForSeance.nom : 'ce client'} non disponible. Veuillez l'ajouter à sa fiche.`, "error"); return;
-        }
-    }
+
+    // MODIFIÉ : Préparer les données à envoyer
+    const documentData = {
+        invoiceNumber,
+        client: state.clients.find(c => c.id === seance.id_client),
+        service: [{
+            Date: seance.date_heure_seance,
+            description: state.tarifs.find(t => t.id === seance.id_tarif)?.libelle || 'Séance',
+            quantity: 1,
+            unitPrice: seance.montant_facture
+        }],
+        tva: state.appSettings.tva || 0,
+        manager: state.appSettings.manager,
+        legal: state.appSettings.legal,
+        dueDate: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0] // +30 jours
+    };
+
     showToast(`Envoi email facture ${invoiceNumber}...`, 'info');
     try {
-        const result = await api.sendInvoiceByEmailApi(invoiceNumber, emailToSendTo);
-        showToast(result.message || `Facture ${invoiceNumber} envoyée à ${emailToSendTo}.`, 'success');
-    } catch (error) { showToast(`Erreur envoi email: ${error.message}`, 'error'); }
+        // MODIFIÉ : Envoyer les données de la séance
+        const result = await api.sendInvoiceByEmailApi(invoiceNumber, clientEmail, documentData);
+        showToast(result.message || `Facture ${invoiceNumber} envoyée à ${clientEmail}.`, 'success');
+    } catch (error) { 
+        showToast(`Erreur envoi email: ${error.message}`, 'error'); 
+    }
 }
 
 async function handleSendDevisByEmail(seanceId, devisNumber, clientEmail) {
-    if (state.currentlyEditingRow && state.currentlyEditingRow.dataset.seanceId === seanceId) {
-        const seance = state.seances.find(s => s.id_seance === seanceId);
-       if (seance) await saveRowChanges(state.currentlyEditingRow, seance);
+    // MODIFIÉ : Récupérer la séance complète
+    const seance = state.seances.find(s => s.id_seance === seanceId);
+    if (!seance) {
+        showToast("Séance non trouvée.", "error");
+        return;
     }
-    if (!state.appSettings.googleOAuth || !state.appSettings.googleOAuth.isConnected) {
-        showToast("Veuillez connecter un compte Google dans la configuration pour envoyer des emails.", "warning"); return;
-    }
-    let emailToSendTo = clientEmail;
-    if (!emailToSendTo) {
-        const clientForSeance = state.clients.find(c => c.id === state.seances.find(s => s.id_seance === seanceId)?.id_client);
-        if (clientForSeance && clientForSeance.email) {
-            emailToSendTo = clientForSeance.email;
-        } else {
-            showToast(`Email pour ${clientForSeance ? clientForSeance.prenom + ' ' + clientForSeance.nom : 'ce client'} non disponible. Veuillez l'ajouter à sa fiche.`, "error"); return;
-        }
-    }
+
+    // MODIFIÉ : Préparer les données à envoyer
+    const documentData = {
+        devisNumber,
+        client: state.clients.find(c => c.id === seance.id_client),
+        service: [{
+            Date: seance.date_heure_seance,
+            description: state.tarifs.find(t => t.id === seance.id_tarif)?.libelle || 'Séance',
+            quantity: 1,
+            unitPrice: seance.montant_facture
+        }],
+        tva: state.appSettings.tva || 0,
+        manager: state.appSettings.manager,
+        legal: state.appSettings.legal,
+        validityDate: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0] // +30 jours
+    };
+
     showToast(`Envoi email devis ${devisNumber}...`, 'info');
     try {
-        const result = await api.sendDevisByEmailApi(devisNumber, emailToSendTo);
-        showToast(result.message || `Devis ${devisNumber} envoyé à ${emailToSendTo}.`, 'success');
-    } catch (error) { showToast(`Erreur envoi email devis: ${error.message}`, 'error'); }
+        // MODIFIÉ : Envoyer les données de la séance
+        const result = await api.sendDevisByEmailApi(devisNumber, clientEmail, documentData);
+        showToast(result.message || `Devis ${devisNumber} envoyé à ${clientEmail}.`, 'success');
+    } catch (error) { 
+        showToast(`Erreur envoi email devis: ${error.message}`, 'error'); 
+    }
 }
-
 async function handleSeanceRowDblClick(event, seanceId) {
     const row = event.currentTarget;
     if (!seanceId) return;

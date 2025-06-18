@@ -1,8 +1,9 @@
-// js/dashboard.js
+// public/js/dashboard.js
 import * as dom from './dom.js';
 import * as state from './state.js';
 import * as api from './api.js';
-import { showToast } from './utils.js';
+// MODIFIÉ : Import de la fonction d'alerte
+import { showToast, showDemoAlert } from './utils.js';
 
 function getPeriodStartDate(dateStr, periodType) {
     if (!dateStr) return null;
@@ -563,6 +564,11 @@ export function initializeDashboard() {
     }
 }
 async function exportToGoogleSheets() {
+    // MODIFIÉ : Ajout de la protection
+    if (!state.appSettings.googleOAuth.isConnected) {
+        showDemoAlert();
+        return;
+    }
     try {
         showToast('Préparation de l\'export vers Google Sheets...', 'info');
         

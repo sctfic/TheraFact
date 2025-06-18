@@ -89,6 +89,7 @@ nav {
     flex-shrink: 0; 
     width: 100%; /* Ensure nav takes full width */
     box-sizing: border-box; /* Include padding in width calculation */
+    z-index: 3;
 }
 
 /* New styles for spacers */
@@ -118,23 +119,21 @@ nav button.nav-btn {
 .data-context-display {
     text-align: center;
     font-weight: bold;
-    padding: 8px 0;
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
     color: #495057;
     width: 100%;
+    opacity: 0.5;
+    font-size: 1.2rem;
 }
 main {
     flex-grow: 1;
-    padding: 1.2rem 0.5rem; 
     max-width: 1100px; 
-    margin: 0 auto; 
+    margin: 6px auto; 
     width: 100%; 
     box-sizing: border-box;
-    background-color: #f4f7f6; 
     transition: max-width 0.3s ease-in-out, padding-left 0.3s ease-in-out, padding-right 0.3s ease-in-out;
     overflow-y: auto; 
-    overflow-x: hidden; 
+    overflow-x: hidden;
+    z-index: 1;
 }
 
 main.main-full-width {
@@ -206,8 +205,7 @@ h2 {
     transition: border-color 0.2s;
     box-sizing: border-box; /* S'assure que la bordure est à l'intérieur */
 }
-/* 
-.nav-google-icon:hover {
+/* .nav-google-icon:hover {
     border-color: #ddd;
 } */
 .user-profile-container:hover > .nav-google-icon {

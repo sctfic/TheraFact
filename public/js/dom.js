@@ -1,7 +1,10 @@
-// js/dom.js
+// public/js/dom.js
 export const navButtons = document.querySelectorAll('.nav-btn');
 export const views = document.querySelectorAll('.view');
-export const dataContextDisplay = document.getElementById('dataContextDisplay');
+// MODIFIÉ : Correction des références pour la barre de statut
+export const dataStatusBar = document.getElementById('dataStatusBar');
+export const currentDataFolder = document.getElementById('currentDataFolder');
+
 
 // Profil utilisateur et menu déroulant
 export const userProfileContainer = document.getElementById('userProfileContainer');
@@ -10,6 +13,7 @@ export const userProfileDropdown = document.getElementById('userProfileDropdown'
 export const dropdownUserName = document.getElementById('dropdownUserName');
 export const dropdownUserEmail = document.getElementById('dropdownUserEmail');
 export const dropdownDisconnectBtn = document.getElementById('dropdownDisconnectBtn');
+export const navConfig = document.getElementById('navConfig'); // Ajout pour le lien direct
 
 // Clients
 export const clientFormContainer = document.getElementById('clientFormContainer');
@@ -67,6 +71,8 @@ export const filterSeanceStatut = document.getElementById('filterSeanceStatut');
 export const filterSeanceDateStart = document.getElementById('filterSeanceDateStart');
 export const filterSeanceDateEnd = document.getElementById('filterSeanceDateEnd');
 export const clearSeanceFiltersBtn = document.getElementById('clearSeanceFilters');
+export const availabilityInfoContainer = document.getElementById('availabilityInfoContainer');
+export const availabilityList = document.getElementById('availabilityList');
 
 
 // Modale de suppression

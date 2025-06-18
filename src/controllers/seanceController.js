@@ -1,4 +1,4 @@
-// controllers/seanceController.js
+// src/controllers/seanceController.js
 const Seance = require('../models/Seance');
 const Client = require('../models/Client');
 const Tarif = require('../models/Tarif');
@@ -126,9 +126,15 @@ async function getAllSeances(req, res) {
 async function getInvoiceStatus(req, res) { 
     const { invoiceNumber } = req.params;
     const { userEmail } = req;
+    console.log('userEmail', userEmail);
     const dataPath = getDataPath(userEmail);
     try {
-        const seance = await Seance.findByInvoiceNumber(invoiceNumber, dataPath);
+        // MODIFIÉ : Recherche dans les deux types de documents
+        let seance = await Seance.findByInvoiceNumber(invoiceNumber, dataPath);
+        if (!seance) {
+            seance = await Seance.findByDevisNumber(invoiceNumber, dataPath);
+        }
+
         if (!seance) {
             return res.status(404).json({ message: `Document ${invoiceNumber} non lié à une séance.` });
         }
@@ -150,6 +156,7 @@ async function getInvoiceStatus(req, res) {
     }
 }
 
+
 async function createOrUpdateSeance(req, res) {
     const { userEmail, oauth2Client, isDemo } = req;
     const dataPath = getDataPath(userEmail);
@@ -166,7 +173,7 @@ async function createOrUpdateSeance(req, res) {
             Object.assign(seance, seanceData);
         }
 
-        if (isDemo && oauth2Client && calendarHelper.isCalendarConfigured()) {
+        if (!isDemo && oauth2Client && calendarHelper.isCalendarConfigured()) {
             try {
                 calendarHelper.setAuth(oauth2Client);
                 const seanceDateTime = new Date(seance.date_heure_seance);
@@ -253,6 +260,7 @@ async function deleteSeance(req, res) {
 async function generateInvoice(req, res) {
     const { seanceId } = req.params;
     const { userEmail } = req;
+    console.log('userEmail', userEmail);
     const dataPath = getDataPath(userEmail);
     try {
         const seance = await Seance.findById(seanceId, dataPath);
@@ -282,7 +290,7 @@ async function generateInvoice(req, res) {
             return res.status(404).json({ message: "Tarif associé à la séance non trouvé."});
         }
 
-        const settings = await readSettingsJson(authState.activeGoogleAuthTokens.userEmail);
+        const settings = await readSettingsJson(userEmail);
         const invoiceNumber = await getNextInvoiceNumber(dataPath);
         const invoiceDate = new Date().toISOString(); 
         
@@ -337,6 +345,7 @@ async function generateInvoice(req, res) {
 async function generateDevis(req, res) {
     const { seanceId } = req.params;
     const { userEmail } = req;
+    console.log('userEmail', userEmail);
     const dataPath = getDataPath(userEmail);
     try {
         const seance = await Seance.findById(seanceId, dataPath);

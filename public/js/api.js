@@ -144,22 +144,22 @@ export async function generateDevisForSeanceApi(seanceId) {
     return result;
 }
 
-export async function sendInvoiceByEmailApi(invoiceNumber, clientEmail) {
+export async function sendInvoiceByEmailApi(invoiceNumber, clientEmail, documentData) {
     const response = await fetch(`${API_BASE_URL}/invoice/${invoiceNumber}/send-by-email`, { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ clientEmail: clientEmail }) 
+        body: JSON.stringify({ clientEmail, documentData }) // MODIFIÉ
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.message || `Erreur serveur (${response.status})`);
     return result;
 }
 
-export async function sendDevisByEmailApi(devisNumber, clientEmail) {
+export async function sendDevisByEmailApi(devisNumber, clientEmail, documentData) {
     const response = await fetch(`${API_BASE_URL}/devis/${devisNumber}/send-by-email`, { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ clientEmail: clientEmail }) 
+        body: JSON.stringify({ clientEmail, documentData }) // MODIFIÉ
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.message || `Erreur serveur (${response.status})`);

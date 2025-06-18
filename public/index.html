@@ -49,7 +49,9 @@
         </div>
         <img id="fullscreenToggleBtn" class="brightness" src="pictures/expand.png" alt="fullScreen" style="height: 1.3em; vertical-align: middle;">
     </nav>
-
+    <div id="dataStatusBar">
+        <span id="currentDataFolder">Mode : DEMO</span>
+    </div>
     <main>
         <section id="viewSeances" class="view active">
             <div class="section-header">
@@ -68,7 +70,6 @@
                     <div class="form-actions">
                         </div>
                 </div>
-                <!-- <h3 id="seanceFormTitle">Ajouter une nouvelle séance</h3> -->
                 <form id="seanceForm" class="form-grid">
                     <input type="hidden" id="seanceId">
                     <div class="form-group">
@@ -155,7 +156,6 @@
                 <button id="btnAddClient" class="btn btn-primary">Ajouter un Client</button>
             </div>
             <div id="clientFormContainer" class="form-container hidden">
-                <!-- <h3 id="clientFormTitle">Ajouter un nouveau client</h3> -->
                 <form id="clientForm" class="form-grid">
                     <input type="hidden" id="clientId">
                     <div class="form-group"><label for="clientNom">Nom* :</label><input type="text" id="clientNom" required></div>
@@ -206,7 +206,6 @@
                 <button id="btnAddTarif" class="btn btn-primary">Ajouter un Tarif</button>
             </div>
             <div id="tarifFormContainer" class="form-container hidden">
-                <!-- <h3 id="tarifFormTitle">Ajouter un nouveau tarif</h3> -->
                 <form id="tarifForm" class="form-grid">
                     <input type="hidden" id="tarifId">
                     <div class="form-group form-row"><label for="tarifLibelle">Libellé* :</label><input type="text" id="tarifLibelle" required></div>
@@ -229,9 +228,7 @@
         <section id="viewDashboard" class="view">
             <div class="section-header">
                 <h2>Tableau de Bord</h2>
-                <button id="exportToSheetsBtn" class="btn btn-primary">
-                    <i class="fas fa-file-excel"></i> Exporter vers Google Sheets
-                </button>
+                <img id="exportToSheetsBtn" src="./pictures/flat_spreadsheet.png" class="sheets-icon" alt="Exporter vers Google Sheets" title="Exporter vers Google Sheets">
             </div>
             <div class="dashboard-row" style="display: flex; gap: 1.2rem; flex-wrap: wrap;">
                 <div class="form-container" style="flex:1 1 110px; min-width:110px;">
@@ -324,7 +321,7 @@
         </section>
     </main>
 
-    <footer><p>&copy; 2025 Votre Application de Thérapie. Tous droits réservés.</p></footer>
+    <footer><p>&copy; 2025 Application de planning et facturation pour thérapeute. Tous droits réservés.</p></footer>
 
     <div id="deleteConfirmModal" class="modal">
         <div class="modal-content">
