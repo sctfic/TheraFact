@@ -11,7 +11,6 @@ import {
     toggleSeancePaymentFields as toggleNewSeancePaymentFields 
 } from './seances.js';
 
-
 function openClientForm(clientId = null) {
     state.setEditingClientId(clientId);
     populateTarifDropdowns(); 

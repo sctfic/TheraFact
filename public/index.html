@@ -13,7 +13,7 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
-    <header><h1>Application de Facturation Thérapie</h1></header>
+    <header><h1>Application de Facturation Thérapie (<span id="appVersion"></span>)</h1></header>
     <nav>
         <div class="nav-spacer-left"></div>
         <button id="navSeances" class="nav-btn active">Séances</button>
@@ -47,7 +47,7 @@
                 </div>
             </div>
         </div>
-        <img id="fullscreenToggleBtn" class="brightness" src="pictures/expand.png" alt="fullScreen" style="height: 1.3em; vertical-align: middle;">
+        <img id="fullscreenToggleBtn" class="brightness" src="pictures/Expand.png" alt="fullScreen" style="height: 1.3em; vertical-align: middle;">
     </nav>
     <div id="dataStatusBar">
         <span id="currentDataFolder">Mode : DEMO</span>
@@ -321,7 +321,7 @@
         </section>
     </main>
 
-    <footer><p>&copy; 2025 Application de planning et facturation pour thérapeute. Tous droits réservés.</p></footer>
+    <footer><p>&copy; 2025 Application de planning et facturation pour thérapeute. Tous droits réservés. - <span id="appVersion"></span></p></footer>
 
     <div id="deleteConfirmModal" class="modal">
         <div class="modal-content">

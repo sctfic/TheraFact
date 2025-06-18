@@ -4,7 +4,7 @@ export const views = document.querySelectorAll('.view');
 // MODIFIÉ : Correction des références pour la barre de statut
 export const dataStatusBar = document.getElementById('dataStatusBar');
 export const currentDataFolder = document.getElementById('currentDataFolder');
-
+export const appVersionSpan = document.getElementById('appVersion');
 
 // Profil utilisateur et menu déroulant
 export const userProfileContainer = document.getElementById('userProfileContainer');

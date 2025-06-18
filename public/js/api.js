@@ -10,6 +10,20 @@ import { updateDashboardStats } from './dashboard.js';
 
 const API_BASE_URL = getApiBaseUrl();
 
+export async function fetchAppVersion() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/version`);
+        if (!response.ok) {
+            console.warn('Impossible de récupérer la version de l\'application.');
+            return null;
+        }
+        const data = await response.json();
+        return data.version;
+    } catch (error) {
+        console.error('Erreur lors du fetch de la version:', error);
+        return null;
+    }
+}
 export async function fetchClients() {
     try {
         const response = await fetch(`${API_BASE_URL}/clients`);

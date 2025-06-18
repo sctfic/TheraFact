@@ -81,40 +81,42 @@ function updateDataStatusBar(settings) {
     }
 }
 
+async function displayAppVersion() {
+    const version = await api.fetchAppVersion();
+    if (version && dom.appVersionSpan) {
+        dom.appVersionSpan.textContent = `v${version}`;
+    }
+}
 
 async function initializeApp() {
-    // Initialisations de base qui n'attendent pas de données
     initializeNavigation();
     initializeModal();
     initializeFullscreenButton();
     setElementHeightCSSVariables();
     window.addEventListener('resize', setElementHeightCSSVariables);
     
-    // Étape 1: Récupérer les paramètres qui déterminent l'état de l'UI globale
+    // MODIFIÉ : Appel de la fonction pour afficher la version
+    displayAppVersion(); 
+
     await api.fetchSettings();
     
-    // Mettre à jour l'UI globale (icône, contexte) dès que les paramètres sont connus
     updateTopBarInfo(state.appSettings);
-    updateDataStatusBar(state.appSettings); // Mettre à jour la barre de statut
+    updateDataStatusBar(state.appSettings);
 
-    // Étape 2: Récupérer le reste des données en parallèle
     await Promise.all([
         api.fetchTarifs(),   
         api.fetchClients(),  
         api.fetchSeances()
     ]);
 
-    // Étape 3: Initialiser les gestionnaires d'événements pour les vues
     initializeClientManagement();
     initializeTarifManagement();
     initializeSeanceManagement();
     initializeDashboard();
-    initializeConfigManagement(); // Initialise aussi les listeners pour l'icône
+    initializeConfigManagement();
 
-    // Gérer les redirections OAuth
     handleConfigOAuthCallback(); 
 
-    // Déterminer la vue à afficher
     const currentHash = window.location.hash.substring(1);
     let viewToDisplay = 'viewSeances'; 
 
@@ -127,7 +129,6 @@ async function initializeApp() {
     
     switchView(viewToDisplay); 
 
-    // S'assurer que les vues complexes sont bien rendues si elles sont la destination
     if (viewToDisplay === 'viewDashboard' && document.getElementById('viewDashboard')?.classList.contains('active')) {
         updateDashboardStats(); 
     }

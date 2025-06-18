@@ -1,6 +1,6 @@
 // src/controllers/documentController.js
 const { getDataPath } = require('../helpers/fileHelper');
-const { generatePdfWithJspdf } = require('../helpers/documentHelper'); // Import de la fonction
+const { generatePdfWithJspdf } = require('../helpers/documentHelper');
 const path = require('path');
 const fs = require('fs').promises;
 const { PATHS } = require('../config/constants');
@@ -51,70 +51,57 @@ async function getDevisJson(req, res) {
     }
 }
 
-// NOUVEAU : Fonction de test pour la génération de PDF
-async function testPdfGeneration(req, res) {
-    console.log("--- Lancement de la génération du PDF de test ---");
+// NOUVEAU : Logique pour servir le PDF
+async function serveDocumentPdf(req, res) {
+    const { docNumber } = req.params;
+    const { userEmail } = req;
+    const dataPath = getDataPath(userEmail);
+    
+    const isDevis = docNumber.startsWith('DEV-');
+    const docDir = isDevis ? PATHS.DEVIS_DIR : PATHS.FACTS_DIR;
+    const pdfPath = path.join(dataPath, docDir, `${docNumber}.pdf`);
+    
     try {
-        // 1. Création de données de test complètes
-        const testInvoiceData = {
-            invoiceNumber: "TEST-2025-0001",
-            invoiceDate: new Date().toLocaleDateString('fr-FR'),
-            dueDate: new Date(new Date().setDate(new Date().getDate() + 30)).toLocaleDateString('fr-FR'),
-            client: {
-                name: "Client de Démonstration",
-                address: "123 Rue de l'Exemple",
-                city: "75001 Paris",
-            },
-            service: [
-                { Date: "15/06/2025", description: "Séance de test standard", quantity: 1, unitPrice: 60 },
-                { Date: "16/06/2025", description: "Consultation approfondie", quantity: 2, unitPrice: 75.50 }
-            ],
-            tva: 20.0,
-            manager: {
-                name: "Mon Cabinet Thérapeutique",
-                title: "Thérapeute Certifié",
-                address: "456 Avenue de la Santé",
-                city: "64000 PAU",
-                phone: "01 23 45 67 89",
-                email: "contact@moncabinet.fr"
-            },
-            legal: {
-                siret: "123 456 789 00010",
-                ape: "8690F",
-                adeli: "N/A",
-                iban: "FR76 3000 4000 0500 0012 3456 789",
-                bic: "BNPAFRPPXXX",
-                tvaMention: "TVA applicable au taux de 20%",
-                paymentTerms: "Paiement à 30 jours.",
-                insurance: "Assurance Pro XYZ - Contrat 987654"
-            }
-        };
-
-        // 2. Appel de la fonction de génération
-        const pdfBuffer = await generatePdfWithJspdf(testInvoiceData);
-        console.log("PDF de test généré en mémoire.");
-
-        // 3. Sauvegarde du fichier de test
-        const testPdfDir = path.join(__dirname, '../../data');
-        const testPdfPath = path.join(testPdfDir, 'test.pdf');
-        await fs.mkdir(testPdfDir, { recursive: true });
-        await fs.writeFile(testPdfPath, pdfBuffer);
-        console.log(`Fichier de test sauvegardé dans : ${testPdfPath}`);
-
-        // 4. Envoi du PDF au navigateur
+        // 1. Essayer de servir le PDF s'il existe déjà
+        await fs.access(pdfPath);
+        console.log(`PDF existant trouvé pour ${docNumber}. Service du fichier.`);
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'inline; filename=test.pdf'); // 'inline' pour l'afficher, 'attachment' pour le télécharger
-        res.send(pdfBuffer);
-        console.log("PDF de test envoyé au navigateur.");
-
+        res.setHeader('Content-Disposition', `inline; filename="${docNumber}.pdf"`);
+        return fs.createReadStream(pdfPath).pipe(res);
     } catch (error) {
-        console.error("Erreur lors de la génération du PDF de test :", error);
-        res.status(500).send("Erreur lors de la génération du PDF de test : " + error.message);
+        // 2. Si le PDF n'existe pas (ENOENT), le générer
+        if (error.code === 'ENOENT') {
+            console.log(`PDF non trouvé pour ${docNumber}. Génération à la volée...`);
+            try {
+                const jsonPath = path.join(dataPath, docDir, `${docNumber}.json`);
+                const jsonData = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+                
+                const pdfBuffer = await generatePdfWithJspdf(jsonData);
+                if (!pdfBuffer) throw new Error("La génération du PDF a échoué et a renvoyé un buffer nul.");
+
+                // Sauvegarder le PDF nouvellement généré
+                await fs.writeFile(pdfPath, pdfBuffer);
+                console.log(`Nouveau PDF sauvegardé : ${pdfPath}`);
+
+                // Servir le buffer
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="${docNumber}.pdf"`);
+                return res.send(pdfBuffer);
+
+            } catch (genError) {
+                console.error(`Erreur lors de la génération/sauvegarde du PDF pour ${docNumber}:`, genError);
+                return res.status(500).send(`Erreur lors de la génération du document ${docNumber}.`);
+            }
+        }
+        
+        // Gérer les autres erreurs d'accès
+        console.error(`Erreur d'accès au fichier PDF pour ${docNumber}:`, error);
+        return res.status(500).send(`Erreur serveur lors de l'accès au document ${docNumber}.`);
     }
 }
 
 module.exports = {
     getInvoiceJson,
     getDevisJson,
-    testPdfGeneration // Export de la nouvelle fonction
+    serveDocumentPdf // Export de la nouvelle fonction
 };

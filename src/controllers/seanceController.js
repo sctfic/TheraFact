@@ -355,7 +355,7 @@ async function generateDevis(req, res) {
 
         if (new Date(seance.date_heure_seance) <= new Date()) {
             return res.status(400).json({ 
-                message: "Un devis ne peut être généré que pour une séance future." 
+                message: `Un devis ne peut être généré que pour une séance future. ${seance.date_heure_seance}` 
             });
         }
 

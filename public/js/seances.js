@@ -2,7 +2,6 @@
 import * as dom from './dom.js';
 import * as state from './state.js';
 import * as api from './api.js';
-// MODIFIÉ : Import de la fonction d'alerte
 import { showToast, generateUUID, getAppBaseUrl, showDemoAlert } from './utils.js';
 import { openDeleteModal } from './modal.js';
 import { populateTarifDropdowns } from './uiHelpers.js';
@@ -77,7 +76,6 @@ function resetAndOpenSeanceForm(seanceId = null) {
     if (dom.availabilityInfoContainer) dom.availabilityInfoContainer.classList.add('hidden');
     if (dom.availabilityList) dom.availabilityList.innerHTML = '<li>Chargement des disponibilités...</li>';
     
-    // MODIFIÉ : Protection de l'appel aux disponibilités du calendrier
     if (!state.appSettings.googleOAuth.isConnected) {
         if (dom.availabilityList) dom.availabilityList.innerHTML = '<li>La connexion à Google est requise pour voir les disponibilités.</li>';
         if (dom.availabilityInfoContainer) dom.availabilityInfoContainer.classList.remove('hidden');
@@ -91,7 +89,6 @@ function resetAndOpenSeanceForm(seanceId = null) {
     if (seanceId) {
         const seance = state.seances.find(s => s.id_seance === seanceId);
         if (seance) {
-            // dom.seanceFormTitle.textContent = 'Modifier la séance';
             dom.seanceIdInput.value = seance.id_seance;
             const client = state.clients.find(c => c.id === seance.id_client);
             dom.seanceClientNameInput.value = client ? `${client.prenom} ${client.nom}` : '';
@@ -131,7 +128,6 @@ function resetAndOpenSeanceForm(seanceId = null) {
             }
         }
     } else {
-        // dom.seanceFormTitle.textContent = 'Ajouter une nouvelle séance';
         const now = new Date();
         let currentMinutes = now.getMinutes();
         let roundedMinutes = Math.ceil(currentMinutes / 15) * 15;
@@ -162,8 +158,6 @@ function closeSeanceForm() {
     dom.seanceFormContainer.classList.add('hidden');
     dom.seanceForm.reset();
     state.setEditingSeanceId(null);
-
-    // AJOUT: Cacher les disponibilités à la fermeture
     if (dom.availabilityInfoContainer) {
         dom.availabilityInfoContainer.classList.add('hidden');
     }
@@ -316,16 +310,24 @@ export function renderSeancesTable() {
         const invoiceCell = row.insertCell();
         invoiceCell.classList.add('invoice-cell');
         invoiceCell.innerHTML = ''; 
-        const isFutureSeance = new Date(seance.date_heure_seance) > new Date();
 
-        if (isFutureSeance) {
+        // MODIFIÉ : Logique de décision basée sur le début de la séance
+        const now = new Date();
+        const seanceStart = new Date(seance.date_heure_seance);
+        const showDevisLogic = now < seanceStart;
+
+        const createDocumentLink = (docNumber) => {
+            const link = document.createElement('a');
+            link.href = `/api/documents/view/${docNumber}.pdf`;
+            link.textContent = docNumber;
+            link.target = '_blank';
+            link.style.marginRight = '5px';
+            return link;
+        };
+
+        if (showDevisLogic) {
             if (seance.devis_number) {
-                const devisLink = document.createElement('a');
-                devisLink.href = `${APP_BASE_URL}/invoice.html?invoiceNumber=${seance.devis_number}`;
-                devisLink.textContent = seance.devis_number;
-                devisLink.target = '_blank';
-                devisLink.style.marginRight = '5px';
-                invoiceCell.appendChild(devisLink);
+                invoiceCell.appendChild(createDocumentLink(seance.devis_number));
                 const emailDevisBtn = document.createElement('button');
                 emailDevisBtn.innerHTML = '<img class="brightness" src="pictures/sendEmail.png" alt="Envoyer devis" style="height: 1.3em; vertical-align: middle;">';
                 emailDevisBtn.classList.add('btn', 'btn-primary', 'btn-sm');
@@ -340,21 +342,11 @@ export function renderSeancesTable() {
                 btnGenererDevis.onclick = (e) => { e.stopPropagation(); handleGenerateDevis(seance.id_seance); };
                 invoiceCell.appendChild(btnGenererDevis);
             } else { 
-                 const invoiceLink = document.createElement('a');
-                 invoiceLink.href = `${APP_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
-                 invoiceLink.textContent = seance.invoice_number;
-                 invoiceLink.target = '_blank';
-                 invoiceLink.style.marginRight = '5px';
-                 invoiceCell.appendChild(invoiceLink);
+                invoiceCell.appendChild(createDocumentLink(seance.invoice_number));
             }
-        } else { 
+        } else { // La séance a commencé ou est passée
             if (seance.invoice_number) {
-                const invoiceLink = document.createElement('a');
-                invoiceLink.href = `${APP_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
-                invoiceLink.textContent = seance.invoice_number;
-                invoiceLink.target = '_blank';
-                invoiceLink.style.marginRight = '5px';
-                invoiceCell.appendChild(invoiceLink);
+                invoiceCell.appendChild(createDocumentLink(seance.invoice_number));
                 const emailBtn = document.createElement('button');
                 emailBtn.innerHTML = '<img class="brightness" src="pictures/sendEmail.png" alt="Envoyer facture" style="height: 1.3em; vertical-align: middle;">';
                 emailBtn.classList.add('btn', 'btn-success', 'btn-sm');
@@ -388,8 +380,8 @@ export function renderSeancesTable() {
             editBtn.onclick = (e) => { e.stopPropagation(); resetAndOpenSeanceForm(seance.id_seance); };
             actionsCell.appendChild(editBtn);
             const deleteBtn = document.createElement('button');
-            deleteBtn.innerHTML = '&#x1F5D1;'; // MODIFIÉ: Icône poubelle
-            deleteBtn.title = 'Supprimer';    // Ajout du title pour l'accessibilité
+            deleteBtn.innerHTML = '&#x1F5D1;';
+            deleteBtn.title = 'Supprimer';
             deleteBtn.classList.add('btn', 'btn-danger', 'btn-sm', 'btn-icon-delete');
             deleteBtn.onclick = (e) => { e.stopPropagation(); openDeleteModal(seance.id_seance, 'seance', `Séance du ${new Date(seance.date_heure_seance).toLocaleDateString()}`); };
             actionsCell.appendChild(deleteBtn);
@@ -409,12 +401,15 @@ async function handleGenerateInvoice(seanceId) {
     try {
         const result = await api.generateInvoiceForSeanceApi(seanceId);
         showToast(`Facture ${result.invoiceNumber} générée.`, 'success');
-        const seanceIndex = state.seances.findIndex(s => s.id_seance === seanceId);
-        if (seanceIndex > -1) {
-            state.seances[seanceIndex].invoice_number = result.invoiceNumber;
-            state.seances[seanceIndex].devis_number = null; 
-            if (result.newSeanceStatus) state.seances[seanceIndex].statut_seance = result.newSeanceStatus;
-        }
+        
+        const updatedSeance = {
+            ...state.seances.find(s => s.id_seance === seanceId),
+            invoice_number: result.invoiceNumber,
+            devis_number: null,
+            statut_seance: result.newSeanceStatus || 'APAYER'
+        };
+        state.updateSeanceInState(updatedSeance);
+        
         renderSeancesTable(); 
     } catch (error) { showToast(`Erreur: ${error.message}`, 'error'); }
 }
@@ -428,87 +423,73 @@ async function handleGenerateDevis(seanceId) {
     try {
         const result = await api.generateDevisForSeanceApi(seanceId);
         showToast(`Devis ${result.devisNumber} généré.`, 'success');
-        const seanceIndex = state.seances.findIndex(s => s.id_seance === seanceId);
-        if (seanceIndex > -1) state.seances[seanceIndex].devis_number = result.devisNumber;
+        
+        const updatedSeance = {
+            ...state.seances.find(s => s.id_seance === seanceId),
+            devis_number: result.devisNumber
+        };
+        state.updateSeanceInState(updatedSeance);
+        
         renderSeancesTable(); 
     } catch (error) { showToast(`Erreur génération devis: ${error.message}`, 'error'); }
 }
 
 async function handleSendInvoiceByEmail(seanceId, invoiceNumber, clientEmail) {
-    // MODIFIÉ : Récupérer la séance complète
-    const seance = state.seances.find(s => s.id_seance === seanceId);
-    if (!seance) {
-        showToast("Séance non trouvée.", "error");
+    if (!state.appSettings.googleOAuth.isConnected) {
+        showDemoAlert();
         return;
     }
-
-    // MODIFIÉ : Préparer les données à envoyer
-    const documentData = {
-        invoiceNumber,
-        client: state.clients.find(c => c.id === seance.id_client),
-        service: [{
-            Date: seance.date_heure_seance,
-            description: state.tarifs.find(t => t.id === seance.id_tarif)?.libelle || 'Séance',
-            quantity: 1,
-            unitPrice: seance.montant_facture
-        }],
-        tva: state.appSettings.tva || 0,
-        manager: state.appSettings.manager,
-        legal: state.appSettings.legal,
-        dueDate: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0] // +30 jours
-    };
-
+    if (state.currentlyEditingRow && state.currentlyEditingRow.dataset.seanceId === seanceId) {
+        const currentSeance = state.seances.find(s => s.id_seance === seanceId);
+        if (currentSeance) await saveRowChanges(state.currentlyEditingRow, currentSeance);
+    }
+    
+    let emailToSendTo = clientEmail;
+    if (!emailToSendTo) {
+        const clientForSeance = state.clients.find(c => c.id === state.seances.find(s => s.id_seance === seanceId)?.id_client);
+        if (clientForSeance && clientForSeance.email) {
+            emailToSendTo = clientForSeance.email;
+        } else {
+            showToast(`Email pour ${clientForSeance ? clientForSeance.prenom + ' ' + clientForSeance.nom : 'ce client'} non disponible. Veuillez l'ajouter à sa fiche.`, "error"); return;
+        }
+    }
     showToast(`Envoi email facture ${invoiceNumber}...`, 'info');
     try {
-        // MODIFIÉ : Envoyer les données de la séance
-        const result = await api.sendInvoiceByEmailApi(invoiceNumber, clientEmail, documentData);
-        showToast(result.message || `Facture ${invoiceNumber} envoyée à ${clientEmail}.`, 'success');
-    } catch (error) { 
-        showToast(`Erreur envoi email: ${error.message}`, 'error'); 
-    }
+        const result = await api.sendInvoiceByEmailApi(invoiceNumber, emailToSendTo);
+        showToast(result.message || `Facture ${invoiceNumber} envoyée à ${emailToSendTo}.`, 'success');
+    } catch (error) { showToast(`Erreur envoi email: ${error.message}`, 'error'); }
 }
 
 async function handleSendDevisByEmail(seanceId, devisNumber, clientEmail) {
-    // MODIFIÉ : Récupérer la séance complète
-    const seance = state.seances.find(s => s.id_seance === seanceId);
-    if (!seance) {
-        showToast("Séance non trouvée.", "error");
+    if (!state.appSettings.googleOAuth.isConnected) {
+        showDemoAlert();
         return;
     }
-
-    // MODIFIÉ : Préparer les données à envoyer
-    const documentData = {
-        devisNumber,
-        client: state.clients.find(c => c.id === seance.id_client),
-        service: [{
-            Date: seance.date_heure_seance,
-            description: state.tarifs.find(t => t.id === seance.id_tarif)?.libelle || 'Séance',
-            quantity: 1,
-            unitPrice: seance.montant_facture
-        }],
-        tva: state.appSettings.tva || 0,
-        manager: state.appSettings.manager,
-        legal: state.appSettings.legal,
-        validityDate: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0] // +30 jours
-    };
-
+    if (state.currentlyEditingRow && state.currentlyEditingRow.dataset.seanceId === seanceId) {
+        const seance = state.seances.find(s => s.id_seance === seanceId);
+       if (seance) await saveRowChanges(state.currentlyEditingRow, seance);
+    }
+    
+    let emailToSendTo = clientEmail;
+    if (!emailToSendTo) {
+        const clientForSeance = state.clients.find(c => c.id === state.seances.find(s => s.id_seance === seanceId)?.id_client);
+        if (clientForSeance && clientForSeance.email) {
+            emailToSendTo = clientForSeance.email;
+        } else {
+            showToast(`Email pour ${clientForSeance ? clientForSeance.prenom + ' ' + clientForSeance.nom : 'ce client'} non disponible. Veuillez l'ajouter à sa fiche.`, "error"); return;
+        }
+    }
     showToast(`Envoi email devis ${devisNumber}...`, 'info');
     try {
-        // MODIFIÉ : Envoyer les données de la séance
-        const result = await api.sendDevisByEmailApi(devisNumber, clientEmail, documentData);
-        showToast(result.message || `Devis ${devisNumber} envoyé à ${clientEmail}.`, 'success');
-    } catch (error) { 
-        showToast(`Erreur envoi email devis: ${error.message}`, 'error'); 
-    }
+        const result = await api.sendDevisByEmailApi(devisNumber, emailToSendTo);
+        showToast(result.message || `Devis ${devisNumber} envoyé à ${emailToSendTo}.`, 'success');
+    } catch (error) { showToast(`Erreur envoi email devis: ${error.message}`, 'error'); }
 }
+
 async function handleSeanceRowDblClick(event, seanceId) {
     const row = event.currentTarget;
     if (!seanceId) return;
     const seance = state.seances.find(s => s.id_seance === seanceId);
-    // if (!seance || seance.invoice_number) { 
-    //     if (seance && seance.invoice_number) showToast("Modification en ligne impossible (séance facturée).", "warning");
-    //     return;
-    // }
     if (state.currentlyEditingRow && state.currentlyEditingRow !== row) {
         const oldSeanceId = state.currentlyEditingRow.dataset.seanceId;
         const oldSeance = state.seances.find(s => s.id_seance === oldSeanceId);
@@ -689,15 +670,24 @@ function revertRowToDisplayMode(row, seance) {
         invoiceCell.innerHTML = ''; 
         if (actionsCell) actionsCell.innerHTML = ''; 
         
-        const isFutureSeance = new Date(seance.date_heure_seance) > new Date();
+        const createDocumentLink = (docNumber) => {
+            const link = document.createElement('a');
+            link.href = `/api/documents/view/${docNumber}.pdf`;
+            link.textContent = docNumber;
+            link.target = '_blank';
+            link.style.marginRight = '5px';
+            return link;
+        };
+
+        // MODIFIÉ : Logique de décision basée sur le début de la séance
+        const now = new Date();
+        const seanceStart = new Date(seance.date_heure_seance);
+        const showDevisLogic = now < seanceStart;
         const client = state.clients.find(c => c.id === seance.id_client);
 
-        if (isFutureSeance) {
+        if (showDevisLogic) {
             if (seance.devis_number) {
-                const devisLink = document.createElement('a');
-                devisLink.href = `${APP_BASE_URL}/invoice.html?invoiceNumber=${seance.devis_number}`;
-                devisLink.textContent = seance.devis_number; devisLink.target = '_blank'; devisLink.style.marginRight = '5px';
-                invoiceCell.appendChild(devisLink);
+                invoiceCell.appendChild(createDocumentLink(seance.devis_number));
                 const emailDevisBtn = document.createElement('button');
                 emailDevisBtn.innerHTML = '<img class="brightness" src="pictures/sendEmail.png" alt="Envoyer devis" style="height: 1.3em; vertical-align: middle;">';
                 emailDevisBtn.classList.add('btn', 'btn-primary', 'btn-sm');
@@ -711,17 +701,11 @@ function revertRowToDisplayMode(row, seance) {
                 btnGenererDevis.onclick = (e) => { e.stopPropagation(); handleGenerateDevis(seance.id_seance); };
                 invoiceCell.appendChild(btnGenererDevis);
             } else { 
-                 const invoiceLink = document.createElement('a');
-                 invoiceLink.href = `${APP_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
-                 invoiceLink.textContent = seance.invoice_number; invoiceLink.target = '_blank'; invoiceLink.style.marginRight = '5px';
-                 invoiceCell.appendChild(invoiceLink);
+                 invoiceCell.appendChild(createDocumentLink(seance.invoice_number));
             }
-        } else { 
+        } else { // La séance a commencé ou est passée
             if (seance.invoice_number) {
-                const invoiceLink = document.createElement('a');
-                invoiceLink.href = `${APP_BASE_URL}/invoice.html?invoiceNumber=${seance.invoice_number}`;
-                invoiceLink.textContent = seance.invoice_number; invoiceLink.target = '_blank'; invoiceLink.style.marginRight = '5px';
-                invoiceCell.appendChild(invoiceLink);
+                invoiceCell.appendChild(createDocumentLink(seance.invoice_number));
                 const emailBtn = document.createElement('button');
                 emailBtn.innerHTML = '<img class="brightness" src="pictures/sendEmail.png" alt="Envoyer facture" style="height: 1.3em; vertical-align: middle;">';
                 emailBtn.classList.add('btn', 'btn-success', 'btn-sm');
@@ -747,8 +731,8 @@ function revertRowToDisplayMode(row, seance) {
                 editBtn.onclick = (e) => { e.stopPropagation(); resetAndOpenSeanceForm(seance.id_seance);};
                 actionsCell.appendChild(editBtn);
                 const deleteBtn = document.createElement('button');
-                deleteBtn.innerHTML = '&#x1F5D1;'; // MODIFIÉ: Icône poubelle
-                deleteBtn.title = 'Supprimer';    // Ajout du title
+                deleteBtn.innerHTML = '&#x1F5D1;';
+                deleteBtn.title = 'Supprimer';
                 deleteBtn.classList.add('btn', 'btn-danger', 'btn-sm', 'btn-icon-delete');
                 deleteBtn.onclick = (e) => { e.stopPropagation(); openDeleteModal(seance.id_seance, 'seance', `Séance du ${new Date(seance.date_heure_seance).toLocaleDateString()}`);};
                 actionsCell.appendChild(deleteBtn);
@@ -816,7 +800,7 @@ export function initializeSeanceManagement() {
     if (dom.seanceStatutSelect) dom.seanceStatutSelect.addEventListener('change', (e) => toggleSeancePaymentFields(e.target.value));
     if (dom.seanceForm) dom.seanceForm.addEventListener('submit', handleSeanceFormSubmit);
 
-    applyDefaultSeanceDateFilters(); // Appliquer les filtres de date par défaut
+    applyDefaultSeanceDateFilters();
 
     if (dom.searchSeanceClientInput) dom.searchSeanceClientInput.addEventListener('input', renderSeancesTable);
     if (dom.filterSeanceStatut) dom.filterSeanceStatut.addEventListener('change', renderSeancesTable);
@@ -827,10 +811,8 @@ export function initializeSeanceManagement() {
         dom.clearSeanceFiltersBtn.addEventListener('click', () => {
             if(dom.searchSeanceClientInput) dom.searchSeanceClientInput.value = '';
             if(dom.filterSeanceStatut) dom.filterSeanceStatut.value = '';
-            // MODIFIÉ: Vider les champs de date au lieu de réappliquer les filtres par défaut directs
             if(dom.filterSeanceDateStart) dom.filterSeanceDateStart.value = '';
             if(dom.filterSeanceDateEnd) dom.filterSeanceDateEnd.value = '';
-            // applyDefaultSeanceDateFilters(); // Ne plus appeler ici pour un vrai "reset"
             renderSeancesTable(); 
         });
     }

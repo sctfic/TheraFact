@@ -1,9 +1,10 @@
-// controllers/settingsController.js
-const { readSettingsJson, writeSettingsJson, getDataPath, getDataContextName } = require('../helpers/fileHelper'); // Ajout de writeSettingsJson
+// src/controllers/settingsController.js
+const { readSettingsJson, writeSettingsJson, getDataPath, getDataContextName } = require('../helpers/fileHelper');
+const fs = require('fs').promises;
+const path = require('path');
 
 async function getSettings(req, res) {
     try {
-        // userEmail sera null en mode démo, ce qui est géré par getDataPath et getDataContextName
         const { userEmail, isDemo } = req;
         const settings = await readSettingsJson(userEmail);
         const dataContext = getDataContextName(userEmail);
@@ -11,7 +12,7 @@ async function getSettings(req, res) {
         const clientSafeSettings = {
             manager: settings.manager,
             googleOAuth: {
-                isConnected: !isDemo, // Connecté seulement si ce n'est pas une démo
+                isConnected: !isDemo,
                 userEmail: isDemo ? null : (settings.googleOAuth?.userEmail || userEmail),
                 userName: isDemo ? null : (settings.googleOAuth?.userName || null),
                 profilePictureUrl: isDemo ? null : (settings.googleOAuth?.profilePictureUrl || null),
@@ -54,7 +55,6 @@ async function updateSettings(req, res) {
             dataContext: getDataContextName(userEmail)
         };
         
-        // Ne pas supprimer googleOAuth de la réponse
         res.status(200).json(response);
     } catch (error) {
         console.error('Erreur API POST /api/settings :', error.message, error.stack);
@@ -62,7 +62,21 @@ async function updateSettings(req, res) {
     }
 }
 
+async function getAppVersion(req, res) {
+    try {
+        // Le chemin est relatif au fichier actuel (src/controllers)
+        const packageJsonPath = path.join(__dirname, '../../package.json');
+        const fileContent = await fs.readFile(packageJsonPath, 'utf8');
+        const packageData = JSON.parse(fileContent);
+        res.json({ version: packageData.version || 'N/A' });
+    } catch (error) {
+        console.error("Erreur lors de la lecture de package.json :", error);
+        res.status(500).json({ message: "Impossible de récupérer la version de l'application." });
+    }
+}
+
 module.exports = {
     getSettings,
-    updateSettings
+    updateSettings,
+    getAppVersion // Export de la nouvelle fonction
 };

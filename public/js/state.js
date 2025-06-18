@@ -63,7 +63,8 @@ export function setSeances(data) {
 export function updateSeanceInState(updatedSeance) {
     const index = seances.findIndex(s => s.id_seance === updatedSeance.id_seance);
     if (index > -1) {
-        seances[index] = { ...seances[index], ...updatedSeance };
+        // Remplacer complètement l'objet existant
+        seances[index] = updatedSeance;
     } else {
         seances.push(updatedSeance);
     }
