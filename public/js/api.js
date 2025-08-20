@@ -236,7 +236,7 @@ export async function fetchCalendarAvailability() {
     try {
         const response = await fetch(`${API_BASE_URL}/calendar/availability`);
         if (!response.ok) {
-            throw new Error('Échec de la récupération des disponibilités du calendrier');
+            throw new Error('XXX Échec de la récupération des disponibilités du calendrier');
         }
         return await response.json();
     } catch (error) {

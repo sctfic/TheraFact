@@ -30,15 +30,16 @@ function calculateValidityOrDueDate(baseDateStr, days = 30) {
     } catch (e) { return ''; }
 }
 
-async function getNextInvoiceNumber(dataPath) {
+async function getNextInvoiceNumber(dataPath) { // in seances.tsv
     const currentYear = new Date().getFullYear();
     const prefix = `FAC-${currentYear}-`;
     let maxCounter = 0;
     
     try {
-        const allSeances = await Seance.findAll(dataPath);
+        const allSeances = await Seance.findAll(dataPath); // liste seances.tsv
         allSeances.forEach(seance => {
             if (seance.invoice_number && seance.invoice_number.startsWith(prefix)) {
+            console.log(seance);
                 const numPart = parseInt(seance.invoice_number.substring(prefix.length), 10);
                 if (!isNaN(numPart) && numPart > maxCounter) maxCounter = numPart;
             }
@@ -313,6 +314,11 @@ async function generateInvoice(req, res) {
                 quantity: 1,
                 unitPrice: parseFloat(tarif.montant)
             }],
+            payment:{
+                statut: seance.statut_seance,
+                mode: seance.mode_paiement,
+                date: seance.date_paiement,
+            },
             subTotal: parseFloat(tarif.montant),
             tva: parseFloat(settings.tva) || 0,
             manager: settings.manager || {},

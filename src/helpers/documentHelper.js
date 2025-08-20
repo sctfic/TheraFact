@@ -5,7 +5,7 @@ const { jsPDF } = require("jspdf");
 const autoTable = require('jspdf-autotable').default;
 
 function generatePdfWithJspdf(data) {
-    console.log("generatePdfWithJspdf: Début de la génération du PDF.");
+    console.log("generatePdfWithJspdf: Début de la génération du PDF.",data);
     
     // Créer le document PDF avec encodage UTF-8
     const doc = new jsPDF({
@@ -170,7 +170,16 @@ function generatePdfWithJspdf(data) {
    // Montant à régeler
    const paymentLabel = isDevis ? "MONTANT TOTAL DU DEVIS :" : "MONTANT À RÉGLER :";
    doc.text(`${paymentLabel} ${formatCurrency(total_ttc)}`, rightX, cursorY, { align: 'right' });
-   cursorY += 20;
+
+   cursorY += 12;
+   
+   // --- Affichage du statut de paiement ---
+   if (!isDevis && data.payment?.statut === 'PAYEE') {
+       doc.setFont('helvetica', 'normal');
+       doc.setFontSize(11);
+       doc.text(`Facture payée le ${data.payment.date || ''} via ${data.payment.mode || ''}`, margin, cursorY);
+   }
+   cursorY += 8;
 
    // --- Mentions légales structurées ---
    doc.setLineWidth(0.5);
@@ -187,12 +196,12 @@ function generatePdfWithJspdf(data) {
    
    // Colonne gauche
    doc.text(`SIRET : ${legal.siret || 'N/A'}`, margin, cursorY);
-   doc.text(`Code APE : ${legal.ape || 'N/A'}`, margin, cursorY + 5);
-   doc.text(`N° ADELI : ${legal.adeli || 'N/A'}`, margin, cursorY + 10);
+   if(legal.ape) doc.text(`Code APE : ${legal.ape || 'N/A'}`, margin, cursorY + 5);
+   if(legal.adeli) doc.text(`N° ADELI : ${legal.adeli || 'N/A'}`, margin, cursorY + 10);
    
    // Colonne droite
-   doc.text(`IBAN : ${legal.iban || 'N/A'}`, 110, cursorY);
-   doc.text(`BIC : ${legal.bic || 'N/A'}`, 110, cursorY + 5);
+   if(legal.iban) doc.text(`IBAN : ${legal.iban || 'N/A'}`, 110, cursorY);
+   if(legal.bic) doc.text(`BIC : ${legal.bic || 'N/A'}`, 110, cursorY + 5);
    
    cursorY += 15;
    
@@ -205,13 +214,43 @@ function generatePdfWithJspdf(data) {
    
    // Conditions de paiement
    if (!isDevis) {
-       doc.text(`Conditions de règlement : ${legal.paymentTerms || 'Paiement à réception.'}`, 
+        doc.text(`Conditions de règlement : ${legal.paymentTerms || 'Paiement à réception.'}`, 
                margin, cursorY, { maxWidth: 180 });
-       cursorY += 10;
-   }
+        cursorY += 10;
+
+        // // Sauvegarder l'état actuel du contexte
+        // doc.saveGraphicsState();
+        // console.log("generatePdfWithJspdf: Devis, affichage du statut en filigrane.")
+        // // Affiche le statut en filigrane, très gros et en diagonale
+        // const statusText = data.payment.statut?.toUpperCase() || 'STATUT INCONNU';
+        
+        // // Configuration du filigrane
+        // doc.setFontSize(80);
+        // doc.setFont('helvetica', 'bold');
+        // doc.setTextColor(230, 230, 230); // Gris très clair
+        
+        // // Calculer la position centrale et l'angle de rotation
+        // const centerX = pageWidth / 2;
+        // const centerY = pageHeight / 2;
+        
+        
+        // // Appliquer la rotation (45 degrés en diagonale)
+        // doc.text(statusText, centerX+margin, centerY+margin, {
+        //     align: 'center',
+        //     angle: 45,
+        //     rotationDirection: 1
+        // });
+        
+        // // Restaurer l'état du contexte
+        // doc.restoreGraphicsState();
+        
+        // // Remettre la couleur par défaut pour le texte suivant
+        // // doc.setTextColor(0, 0, 0);
+    }
+   
    
    // Assurance
-   doc.text(`Assurance RCP : ${legal.insurance || 'N/A'}`, margin, cursorY, { maxWidth: 180 });
+   if (legal.insurance) doc.text(`Assurance RCP : ${legal.insurance || 'N/A'}`, margin, cursorY, { maxWidth: 180 });
 
 
     console.log("generatePdfWithJspdf: Génération du buffer de sortie du PDF.");

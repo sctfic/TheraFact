@@ -12,7 +12,8 @@ async function getCalendarAvailability(req, res) {
 
     try {
         const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-        const calendarId = 'primary';
+        const calendarId = settings.googleCalendar.calendarId || 'primary';
+        console.log(calendarId)
         const timeMin = new Date();
         const timeMax = new Date();
         timeMax.setDate(timeMin.getDate() + 90);

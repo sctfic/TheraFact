@@ -268,3 +268,10 @@ h2 {
 .dropdown-button:hover {
     background-color: #f1f3f4;
 }
+
+.line-clone {
+    fill: none;
+    stroke-width: 2.5;
+    stroke-dasharray: 5,3;
+    pointer-events: none;
+}

@@ -185,9 +185,6 @@ export function renderClientsTable() {
         const row = dom.clientsTableBody.insertRow();
         row.insertCell().textContent = client.nom;
         row.insertCell().textContent = client.prenom;
-        row.insertCell().textContent = client.email || '-';
-        row.insertCell().textContent = client.adresse || '-';
-        row.insertCell().textContent = client.ville || '-';
         const phoneCell = row.insertCell();
         if (client.telephone) {
             const phoneLink = document.createElement('a');
@@ -200,6 +197,9 @@ export function renderClientsTable() {
             phoneCell.textContent = '-';
         }
         
+        row.insertCell().textContent = client.email || '-';
+        row.insertCell().textContent = client.adresse || '-';
+        row.insertCell().textContent = client.ville || '-';
         const statusCell = row.insertCell();
         statusCell.classList.add('status-cell');
         const statusCheckbox = document.createElement('input');

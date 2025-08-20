@@ -2,7 +2,7 @@
 const { getDataPath } = require('../helpers/fileHelper');
 const { generatePdfWithJspdf } = require('../helpers/documentHelper');
 const path = require('path');
-const fs = require('fs').promises;
+const fs = require('fs');
 const { PATHS } = require('../config/constants');
 
 async function getInvoiceJson(req, res) {
@@ -16,7 +16,7 @@ async function getInvoiceJson(req, res) {
     const factsDir = path.join(dataPath, PATHS.FACTS_DIR);
     const filePath = path.join(factsDir, `${invoiceNumber}.json`);
     try {
-        await fs.access(filePath);
+        await fs.promises.access(filePath);
         res.sendFile(path.resolve(filePath));
     } catch (error) {
         if (error.code === 'ENOENT') {
@@ -39,7 +39,7 @@ async function getDevisJson(req, res) {
     const devisDir = path.join(dataPath, PATHS.DEVIS_DIR);
     const filePath = path.join(devisDir, `${devisNumber}.json`);
     try {
-        await fs.access(filePath);
+        await fs.promises.access(filePath);
         res.sendFile(path.resolve(filePath));
     } catch (error) {
         if (error.code === 'ENOENT') {
@@ -63,7 +63,7 @@ async function serveDocumentPdf(req, res) {
     
     try {
         // 1. Essayer de servir le PDF s'il existe déjà
-        await fs.access(pdfPath);
+        await fs.promises.access(pdfPath);
         console.log(`PDF existant trouvé pour ${docNumber}. Service du fichier.`);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename="${docNumber}.pdf"`);
@@ -74,13 +74,13 @@ async function serveDocumentPdf(req, res) {
             console.log(`PDF non trouvé pour ${docNumber}. Génération à la volée...`);
             try {
                 const jsonPath = path.join(dataPath, docDir, `${docNumber}.json`);
-                const jsonData = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+                const jsonData = JSON.parse(await fs.promises.readFile(jsonPath, 'utf8'));
                 
                 const pdfBuffer = await generatePdfWithJspdf(jsonData);
                 if (!pdfBuffer) throw new Error("La génération du PDF a échoué et a renvoyé un buffer nul.");
 
                 // Sauvegarder le PDF nouvellement généré
-                await fs.writeFile(pdfPath, pdfBuffer);
+                await fs.promises.writeFile(pdfPath, pdfBuffer);
                 console.log(`Nouveau PDF sauvegardé : ${pdfPath}`);
 
                 // Servir le buffer

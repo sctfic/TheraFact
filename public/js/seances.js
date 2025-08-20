@@ -81,9 +81,9 @@ function resetAndOpenSeanceForm(seanceId = null) {
         if (dom.availabilityInfoContainer) dom.availabilityInfoContainer.classList.remove('hidden');
     } else {
         // Appeler l'API pour récupérer les disponibilités et les afficher
-        api.fetchCalendarAvailability().then(busySlots => {
-            renderAvailability(busySlots);
-        });
+        // api.fetchCalendarAvailability().then(busySlots => {
+        //     renderAvailability(busySlots);
+        // });
     }
 
     if (seanceId) {
