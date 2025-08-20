@@ -366,10 +366,12 @@ export function displaySessionsTrendChart() {
 }
 
 export function initializeDashboard() {
+    console.log('initializeDashboard');
     if (dom.chartPeriodSelector) {
         dom.chartPeriodSelector.addEventListener('change', displaySessionsTrendChart);
     }
     if (dom.exportToSheetsBtn) {
+        console.log('dom.exportToSheetsBtn', dom.exportToSheetsBtn);
         dom.exportToSheetsBtn.addEventListener('click', async () => {
             if (!state.appSettings.googleOAuth.isConnected) {
                 showDemoAlert();

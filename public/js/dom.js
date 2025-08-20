@@ -92,6 +92,7 @@ export const caAnneePrecedente = document.getElementById('caAnneePrecedente');
 export const caAnneeEnCours = document.getElementById('caAnneeEnCours');
 export const chartPeriodSelector = document.getElementById('chartPeriodSelector');
 export const sessionsTrendChartContainer = document.getElementById('sessionsTrendChartContainer');
+export const exportToSheetsBtn = document.getElementById('exportToSheetsBtn');
 
 // Configuration
 export const configForm = document.getElementById('configForm');
